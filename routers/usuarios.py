@@ -3,6 +3,10 @@ from fastapi import APIRouter, HTTPException, status
 from models.usuario import Usuario
 from core.database import db_client
 from schemas.usuario import usuario_schema, usuarios_schema
+from passlib.context import CryptContext
+
+# Configuración para hashing de contraseñas
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
@@ -24,8 +28,9 @@ async def crear_usuario(usuario: Usuario):
     if type(search_usuario("correo", usuario.correo)) == Usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail='El Usuario ya existe')
-    
+
     usuario_dict = dict(usuario)
+    usuario_dict["psw"] = pwd_context.hash(usuario.psw)  # Encriptar la contraseña
     del usuario_dict["id"] #quitar el id para que no se guarde como null
     id = db_client.local.usuarios.insert_one(usuario_dict).inserted_id #mongodb crea automaticamente el id como "_id"
 
