@@ -7,4 +7,4 @@ class Usuario(BaseModel): #Entidad #modelo
     correo: str
     psw: str
     rol: str
-    sucursal_id: str | None = None  #None es opcional
+    activo: bool = True

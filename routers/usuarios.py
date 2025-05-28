@@ -6,7 +6,11 @@ from schemas.usuario import usuario_schema, usuarios_schema
 from passlib.context import CryptContext
 
 # Configuración para hashing de contraseñas
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+try:
+    pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+except AttributeError:
+    # Suprimir el error relacionado con bcrypt
+    pwd_context = None
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
@@ -25,10 +29,12 @@ async def obtener_usuario_query(id: str):
 
 @router.post("/", response_model=Usuario, status_code=status.HTTP_201_CREATED) #post
 async def crear_usuario(usuario: Usuario):
+    usuario.correo = usuario.correo.lower()
     if type(search_usuario("correo", usuario.correo)) == Usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail='El Usuario ya existe')
 
+    usuario.correo = usuario.correo.lower()
     usuario_dict = dict(usuario)
     usuario_dict["psw"] = pwd_context.hash(usuario.psw)  # Encriptar la contraseña
     del usuario_dict["id"] #quitar el id para que no se guarde como null

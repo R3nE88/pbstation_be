@@ -5,7 +5,7 @@ def usuario_schema(usuario) -> dict:
         "correo":usuario["correo"],
         "psw":usuario["psw"],
         "rol":usuario["rol"],
-        "sucursal_id":usuario["sucursal_id"],
+        "activo":usuario["activo"],
     }
 
 def usuarios_schema(usuarios) -> list:
