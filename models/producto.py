@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class Producto(BaseModel): #Entidad #modelo
     id: str | None = None  #None es opcional
-    codigo: str
+    codigo: int
     descripcion: str
     tipo: str
     categoria: str

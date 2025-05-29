@@ -23,10 +23,9 @@ async def obtener_producto_query(id: str):
 
 @router.post("/", response_model=Producto, status_code=status.HTTP_201_CREATED) #post
 async def crear_producto(producto: Producto):
-    producto.codigo = producto.codigo.lower()
     if type(search_producto("codigo", producto.codigo)) == Producto:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail='El producto ya existe')
+            status_code=status.HTTP_400_BAD_REQUEST, detail='El código del producto ya existe, no se puede repetir. Intenta otro.')
 
     producto_dict = dict(producto)
     del producto_dict["id"] #quitar el id para que no se guarde como null
