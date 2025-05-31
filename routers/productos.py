@@ -3,6 +3,7 @@ from fastapi import APIRouter, HTTPException, status
 from core.database import db_client
 from models.producto import Producto
 from schemas.producto import productos_schema, producto_schema
+from routers.websocket import manager 
 
 
 router = APIRouter(prefix="/productos", tags=["productos"])
@@ -33,6 +34,8 @@ async def crear_producto(producto: Producto):
 
     nuevo_producto = producto_schema(db_client.local.productos.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
 
+    await manager.broadcast(f"post-product:{str(id)}") #Notificar a todos
+
     return Producto(**nuevo_producto) #el ** sirve para pasar los valores del diccionario
 
 @router.put("/", response_model=Producto, status_code=status.HTTP_200_OK) #put
@@ -52,6 +55,8 @@ async def actualizar_producto(producto: Producto):
 
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el producto (put)')
+    
+    await manager.broadcast(f"put-product:{str(id)}") #Notificar a todos
 
     return search_producto("_id", ObjectId(producto.id))
 
@@ -61,6 +66,7 @@ async def detele_producto(id: str):
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el producto')
     else:
+        await manager.broadcast(f"delete-product:{str(id)}") #Notificar a todos
         return {'message':'Eliminado con exito'} 
     
 
