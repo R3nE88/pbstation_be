@@ -40,6 +40,7 @@ async def crear_producto(producto: Producto):
 
 @router.put("/", response_model=Producto, status_code=status.HTTP_200_OK) #put
 async def actualizar_producto(producto: Producto):
+    print(producto)
     if not producto.id:  # Validar si el id está presente
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -47,8 +48,6 @@ async def actualizar_producto(producto: Producto):
         )
 
     producto_dict = dict(producto)
-    print('primer id:')
-    print(producto.id)
     del producto_dict["id"] #eliminar id para no actualizar el id
     try:
         db_client.local.productos.find_one_and_replace({"_id":ObjectId(producto.id)}, producto_dict)
@@ -56,7 +55,7 @@ async def actualizar_producto(producto: Producto):
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el producto (put)')
     
-    await manager.broadcast(f"put-product:{str(id)}") #Notificar a todos
+    await manager.broadcast(f"put-product:{str(ObjectId(producto.id))}") #Notificar a todos
 
     return search_producto("_id", ObjectId(producto.id))
 
