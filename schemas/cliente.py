@@ -4,11 +4,15 @@ def cliente_schema(cliente) -> dict:
         "nombre":cliente["nombre"],
         "correo":cliente["correo"],
         "telefono":cliente["telefono"],
+        "razon_social":cliente["razon_social"],
         "rfc":cliente["rfc"],
-        #"uso_cfdi":cliente["uso_cfdi"],
         "regimen_fiscal":cliente["regimen_fiscal"],
         "codigo_postal":cliente["codigo_postal"],
         "direccion":cliente["direccion"],
+        "no_ext":cliente["no_ext"],
+        "no_int":cliente["no_int"],
+        "colonia":cliente["colonia"],
+        "localidad":cliente["localidad"]
     }
 
 def clientes_schema(clientes) -> list:

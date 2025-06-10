@@ -1,29 +1,50 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Header, status, Depends
+from dotenv import load_dotenv
+import os
 from core.database import db_client
 from models.producto import Producto
 from schemas.producto import productos_schema, producto_schema
 from routers.websocket import manager 
 
 
+# Cargar variables de entorno desde config.env
+dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.env")
+load_dotenv(dotenv_path=dotenv_path)
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
+
+def validar_token(tkn: str = Header(None, description="El token de autorización es obligatorio")):
+    if tkn is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sin Authorizacion"
+        )
+    if tkn != SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorizacion inválida"
+        )
+
 router = APIRouter(prefix="/productos", tags=["productos"])
 
 
 @router.get("/all", response_model=list[Producto])
-async def obtener_productos():
+async def obtener_productos(token: str = Depends(validar_token)):
     return productos_schema(db_client.local.productos.find())
 
 @router.get("/{id}") #path
-async def obtener_producto_path(id: str):
+async def obtener_producto_path(id: str, token: str = Depends(validar_token)):
     return search_producto("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
     
 @router.get("/") #Query
-async def obtener_producto_query(id: str):
+async def obtener_producto_query(id: str, token: str = Depends(validar_token)):
     return search_producto("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
 
 
 @router.post("/", response_model=Producto, status_code=status.HTTP_201_CREATED) #post
-async def crear_producto(producto: Producto):
+async def crear_producto(producto: Producto, token: str = Depends(validar_token)):
     if type(search_producto("codigo", producto.codigo)) == Producto:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail='El código del producto ya existe, no se puede repetir. Intenta otro.')
@@ -39,7 +60,7 @@ async def crear_producto(producto: Producto):
     return Producto(**nuevo_producto) #el ** sirve para pasar los valores del diccionario
 
 @router.put("/", response_model=Producto, status_code=status.HTTP_200_OK) #put
-async def actualizar_producto(producto: Producto):
+async def actualizar_producto(producto: Producto, token: str = Depends(validar_token)):
     print(producto)
     if not producto.id:  # Validar si el id está presente
         raise HTTPException(
@@ -60,7 +81,7 @@ async def actualizar_producto(producto: Producto):
     return search_producto("_id", ObjectId(producto.id))
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-async def detele_producto(id: str):
+async def detele_producto(id: str, token: str = Depends(validar_token)):
     found = db_client.local.productos.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el producto')

@@ -1,31 +1,61 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Header, status, Depends
+from dotenv import load_dotenv
+import os
 from core.database import db_client
 from models.cliente import Cliente
 from schemas.cliente import clientes_schema, cliente_schema
 from routers.websocket import manager 
 
 
+# Cargar variables de entorno desde config.env
+dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.env")
+load_dotenv(dotenv_path=dotenv_path)
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+
+# Depuración: Imprimir el valor de SECRET_KEY
+if not SECRET_KEY:
+    raise RuntimeError("SECRET_KEY no se cargó correctamente desde config.env")
+SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
+
+def validar_token(tkn: str = Header(None, description="El token de autorización es obligatorio")):
+    if tkn is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Sin Authorizacion"
+        )
+    if tkn != SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorizacion inválida"
+        )
+
 router = APIRouter(prefix="/clientes", tags=["clientes"])
 
 @router.get("/all", response_model=list[Cliente])
-async def obtener_clientes():
+async def obtener_clientes(token: str = Depends(validar_token)):
     return clientes_schema(db_client.local.clientes.find())
 
 @router.get("/{id}") #path
-async def obtener_cliente_path(id: str):
+async def obtener_cliente_path(id: str, token: str = Depends(validar_token)):
     return search_cliente("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
 
 @router.get("/") #Query
-async def obtener_cliente_query(id: str):
+async def obtener_cliente_query(id: str, token: str = Depends(validar_token)):
     return search_cliente("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
 
 @router.post("/", response_model=Cliente, status_code=status.HTTP_201_CREATED) #post
-async def crear_cliente(cliente: Cliente):
+async def crear_cliente(cliente: Cliente, token: str = Depends(validar_token)):
     if cliente.rfc is not None:
         if type(search_cliente("rfc", cliente.rfc)) == Cliente:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST, detail='El cliente ya existe en la base de datos. (RFC)')
+        
+    if cliente.razon_social is not None:
+        if type(search_cliente("razon_social", cliente.razon_social)) == Cliente:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail='El cliente ya existe en la base de datos. (Razon Social)')
 
     cliente_dict = dict(cliente)
     del cliente_dict["id"] #quitar el id para que no se guarde como null
@@ -39,7 +69,7 @@ async def crear_cliente(cliente: Cliente):
 
 
 @router.put("/", response_model=Cliente, status_code=status.HTTP_200_OK) #put
-async def actualizar_cliente(cliente: Cliente):
+async def actualizar_cliente(cliente: Cliente, token: str = Depends(validar_token)):
     print(cliente)
     if not cliente.id:  # Validar si el id está presente
         raise HTTPException(
@@ -61,7 +91,7 @@ async def actualizar_cliente(cliente: Cliente):
 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-async def delete_cliente(id: str):
+async def delete_cliente(id: str, token: str = Depends(validar_token)):
     found = db_client.local.clientes.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el cliente')
