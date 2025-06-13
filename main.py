@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import productos, usuarios, login, websocket, clientes
+from routers import productos, usuarios, login, websocket, clientes, detalles_venta
 from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
@@ -11,6 +11,7 @@ app.include_router(websocket.router)
 app.include_router(usuarios.router)
 app.include_router(clientes.router)
 app.include_router(productos.router)
+app.include_router(detalles_venta.router)
 
 #app.mount("/static", StaticFiles(directory="static"), name="static")
 
