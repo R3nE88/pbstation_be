@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-
+from decimal import Decimal
 
 class DetalleVenta(BaseModel): #Entidad #modelo
     id: str | None = None  #None es opcional
@@ -9,5 +9,5 @@ class DetalleVenta(BaseModel): #Entidad #modelo
     alto: float
     comentarios: str
     descuento: int
-    iva: float
-    subtotal: float
+    iva: Decimal
+    subtotal: Decimal

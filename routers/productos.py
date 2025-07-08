@@ -6,6 +6,7 @@ from core.database import db_client
 from models.producto import Producto
 from schemas.producto import productos_schema, producto_schema
 from routers.websocket import manager 
+from bson.decimal128 import Decimal128
 
 
 # Cargar variables de entorno desde config.env
@@ -51,13 +52,16 @@ async def crear_producto(producto: Producto, token: str = Depends(validar_token)
 
     producto_dict = dict(producto)
     del producto_dict["id"] #quitar el id para que no se guarde como null
+    producto_dict["precio"] = Decimal128(producto_dict["precio"])
     id = db_client.local.productos.insert_one(producto_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    
 
     nuevo_producto = producto_schema(db_client.local.productos.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
 
     await manager.broadcast(f"post-product:{str(id)}") #Notificar a todos
 
     return Producto(**nuevo_producto) #el ** sirve para pasar los valores del diccionario
+
 
 @router.put("/", response_model=Producto, status_code=status.HTTP_200_OK) #put
 async def actualizar_producto(producto: Producto, token: str = Depends(validar_token)):
@@ -68,11 +72,11 @@ async def actualizar_producto(producto: Producto, token: str = Depends(validar_t
             detail="El campo 'id' es obligatorio para actualizar un producto" #se necesita enviar mismo id si no no actualiza
         )
 
-    producto_dict = dict(producto)
-    del producto_dict["id"] #eliminar id para no actualizar el id
+    producto_dict = producto.model_dump()
+    del producto_dict["id"]
+    producto_dict["precio"] = Decimal128(str(producto.precio))
     try:
         db_client.local.productos.find_one_and_replace({"_id":ObjectId(producto.id)}, producto_dict)
-
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el producto (put)')
     

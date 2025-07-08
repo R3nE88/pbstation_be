@@ -5,10 +5,11 @@ def producto_schema(producto) -> dict:
         "descripcion":producto["descripcion"],
         "tipo":producto["tipo"],
         "categoria":producto["categoria"],
-        "precio":producto["precio"],
+        "precio": float(producto["precio"].to_decimal()), 
         "inventariable":producto["inventariable"],
         "imprimible":producto["imprimible"],
         "valor_impresion":producto["valor_impresion"],
+        "requiere_medida":producto["requiere_medida"]
     }
 
 def productos_schema(productos) -> list:

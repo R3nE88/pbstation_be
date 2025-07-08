@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from decimal import Decimal
 
 
 class Producto(BaseModel): #Entidad #modelo
@@ -7,7 +8,8 @@ class Producto(BaseModel): #Entidad #modelo
     descripcion: str
     tipo: str
     categoria: str
-    precio: float
+    precio: Decimal
     inventariable: bool = False
     imprimible: bool = False
     valor_impresion: int
+    requiere_medida: bool
