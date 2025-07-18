@@ -7,8 +7,10 @@ def detalle_venta_schema(detalle_venta) -> dict:
         "alto":detalle_venta["alto"],
         "comentarios":detalle_venta["comentarios"],
         "descuento":detalle_venta["descuento"],
+        "descuento_aplicado":float(detalle_venta["descuento_aplicado"].to_decimal()),
         "iva": float(detalle_venta["iva"].to_decimal()), 
         "subtotal": float(detalle_venta["subtotal"].to_decimal()), 
+        "cotizacion_precio": float(detalle_venta["cotizacion_precio"].to_decimal()) if detalle_venta["cotizacion_precio"] else None
     }
 
 def detalles_venta_schema(detalles_venta) -> list:

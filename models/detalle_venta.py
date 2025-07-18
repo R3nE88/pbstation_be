@@ -9,5 +9,7 @@ class DetalleVenta(BaseModel): #Entidad #modelo
     alto: float
     comentarios: str
     descuento: int
+    descuento_aplicado: Decimal
     iva: Decimal
     subtotal: Decimal
+    cotizacion_precio : Decimal | None = None

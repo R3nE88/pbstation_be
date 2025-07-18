@@ -19,6 +19,7 @@ dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.e
 load_dotenv(dotenv_path=dotenv_path)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
 
 # Depuración: Imprimir el valor de SECRET_KEY
 if not SECRET_KEY:
@@ -57,7 +58,12 @@ async def crear_usuario(usuario: Usuario, token: str = Depends(validar_token)):
     usuario.correo = usuario.correo.lower()
     if type(search_usuario("correo", usuario.correo)) == Usuario:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST, detail='El Usuario ya existe')
+            status_code=status.HTTP_400_BAD_REQUEST, detail='Este Correo ya está asociado a un Usuario')
+    
+    usuario.telefono = usuario.telefono
+    if type(search_usuario("telefono", usuario.telefono)) == Usuario:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail='Este Teléfono ya está asociado a un Usuario')
 
     usuario.correo = usuario.correo.lower()
     usuario_dict = dict(usuario)

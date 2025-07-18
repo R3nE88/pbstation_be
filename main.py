@@ -1,7 +1,7 @@
 from fastapi import FastAPI
-from routers import productos, usuarios, login, websocket, clientes, detalles_venta, ventas
+from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones
 from fastapi.staticfiles import StaticFiles
-
+from scheduler import iniciar_scheduler
 app = FastAPI()
 
 
@@ -11,14 +11,23 @@ app.include_router(websocket.router)
 app.include_router(usuarios.router)
 app.include_router(clientes.router)
 app.include_router(productos.router)
-#app.include_router(detalles_venta.router)
+app.include_router(configuracion.router)
 app.include_router(ventas.router)
+app.include_router(sucursales.router)
+app.include_router(cotizaciones.router)
+
+
+iniciar_scheduler()
 
 #app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/helloworld")
 async def helloworld():
     return {"Hello Word": "how are you"}
+
+
+
+
 
 #URL local: http://127.0.0.1:8000
 #Inicia el server: uvicorn main:app --reload

@@ -13,6 +13,7 @@ dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.e
 load_dotenv(dotenv_path=dotenv_path)
 
 SECRET_KEY = os.getenv("SECRET_KEY")
+SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
 
 # Depuración: Imprimir el valor de SECRET_KEY
 if not SECRET_KEY:

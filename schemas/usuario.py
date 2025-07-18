@@ -3,6 +3,7 @@ def usuario_schema(usuario) -> dict:
         "id":str(usuario["_id"]),
         "nombre":usuario["nombre"],
         "correo":usuario["correo"],
+        "telefono":usuario["telefono"],
         "psw":usuario["psw"],
         "rol":usuario["rol"],
         "activo":usuario["activo"],

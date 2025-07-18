@@ -20,6 +20,7 @@ def venta_schema(venta) -> dict:
         "recibido": float(venta["recibido"].to_decimal()), 
         "abonado": float(venta["abonado"].to_decimal()), 
         "cambio": float(venta["cambio"].to_decimal()), 
+        "liquidado": venta["liquidado"],
     }
 
 def ventas_schema(ventas) -> list:
