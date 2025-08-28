@@ -29,5 +29,5 @@ def verificar_cotizaciones_vencidas():
 def iniciar_scheduler():
     verificar_cotizaciones_vencidas()
     scheduler = BackgroundScheduler(timezone="America/Hermosillo")
-    scheduler.add_job(verificar_cotizaciones_vencidas, 'cron', hour=16, minute=0)  # cada día a las 2am
+    scheduler.add_job(verificar_cotizaciones_vencidas, 'cron', hour=2, minute=0)  # cada día a las 2am
     scheduler.start()

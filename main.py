@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas
+from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores
 from fastapi.staticfiles import StaticFiles
 from scheduler import iniciar_scheduler
 app = FastAPI()
@@ -15,7 +15,10 @@ app.include_router(configuracion.router)
 app.include_router(ventas.router)
 app.include_router(ventas_enviadas.router)
 app.include_router(sucursales.router)
+app.include_router(cajas.router)
 app.include_router(cotizaciones.router)
+app.include_router(impresoras.router)
+app.include_router(contadores.router)
 
 
 iniciar_scheduler()

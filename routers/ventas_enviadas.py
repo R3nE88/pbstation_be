@@ -1,35 +1,13 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Header, status, Depends
-from dotenv import load_dotenv
-import os
+from fastapi import APIRouter, HTTPException, status, Depends
 from core.database import db_client
 from models.venta_enviada import VentaEnviada
 from schemas.venta_enviada import ventas_enviadas_schema, venta_enviada_schema
 from routers.websocket import manager
 from bson.decimal128 import Decimal128
-
-
-# Cargar variables de entorno desde config.env
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.env")
-load_dotenv(dotenv_path=dotenv_path)
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
+from validar_token import validar_token 
 
 router = APIRouter(prefix="/ventas_enviadas", tags=["ventas_enviadas"])
-
-def validar_token(tkn: str = Header(None, description="El token de autorización es obligatorio")):
-    if tkn is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Sin Authorizacion"
-        )
-    if tkn != SECRET_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorizacion inválida"
-        )
-
 
 @router.get("/all", response_model=list[VentaEnviada])
 async def obtener_ventas(token: str = Depends(validar_token)):

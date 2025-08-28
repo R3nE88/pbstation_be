@@ -7,6 +7,7 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     id: str | None = None
     cliente_id: str
     usuario_id: str
+    usuario: str
     sucursal_id: str
     pedido_pendiente: bool
     fecha_entrega: str | None = None
@@ -16,3 +17,5 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     descuento: Decimal
     iva: Decimal
     total: Decimal
+    fecha_envio: str
+    compu: str

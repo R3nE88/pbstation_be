@@ -1,39 +1,14 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, Header, status, Depends
-from dotenv import load_dotenv
-import os
+from fastapi import APIRouter, HTTPException, status, Depends
 from core.database import db_client
 from generador_folio import generar_folio_cotizacion, obtener_nombre_sucursal
 from models.cotizacion import Cotizacion
 from schemas.cotizacion import cotizaciones_schema, cotizacion_schema
 from routers.websocket import manager
 from bson.decimal128 import Decimal128
-import re
-from datetime import datetime
-
-# Cargar variables de entorno desde config.env
-dotenv_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "config.env")
-load_dotenv(dotenv_path=dotenv_path)
-
-SECRET_KEY = os.getenv("SECRET_KEY")
-SECRET_KEY = SECRET_KEY.strip()  # Eliminar espacios o saltos de línea
+from validar_token import validar_token 
 
 router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
-
-def validar_token(tkn: str = Header(None, description="El token de autorización es obligatorio")):
-    if tkn is None:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Sin Authorizacion"
-        )
-    if tkn != SECRET_KEY:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authorizacion inválida"
-        )
-
-
-
 
 @router.get("/all", response_model=list[Cotizacion])
 async def obtener_cotizaciones(token: str = Depends(validar_token)):
@@ -55,8 +30,7 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
     cotizacion_dict = cotizacion.model_dump()
 
     #generacion de folio
-    nombre_sucursal = obtener_nombre_sucursal(db_client.local, cotizacion.sucursal_id)
-    cotizacion_dict["folio"] = generar_folio_cotizacion(db_client.local, nombre_sucursal)
+    cotizacion_dict["folio"] = generar_folio_cotizacion(db_client.local)
 
     cotizacion_dict["detalles"] = [d.model_dump() for d in cotizacion.detalles]
     del cotizacion_dict["id"] #quitar el id para que no se guarde como null
