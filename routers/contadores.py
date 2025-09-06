@@ -49,3 +49,19 @@ async def eliminar_contadores_por_impresora(impresora_id: str, token: str = Depe
         )
     #await manager.broadcast(f"delete-contadores:{impresora_id}")  # Notificar a todos
     return {"mensaje": f"Se eliminaron {result.deleted_count} contadores de la impresora {impresora_id}"}
+
+
+#-------------------------------------------------- Actual --------------------------------------------------
+@router.put("/actual/{impresora_id}/{cantidad}")
+async def actualizar_contador_actual(impresora_id: str, cantidad: int, token: str = Depends(validar_token)):
+    result = db_client.local.contadores_actuales.update_one(
+        {"_id": impresora_id},
+        {"$set": {"contador": cantidad}},
+        upsert=True
+    )
+    return {"impresora_id": impresora_id, "contador": cantidad} #TODO: este metodo deveria sumar a la cantidad ya existente de la impresora que coincida
+
+@router.get("/actuales")
+async def obtener_contadores_actuales(token: str = Depends(validar_token)):
+    docs = db_client.local.contadores_actuales.find()
+    return {doc["_id"]: doc["contador"] for doc in docs}
