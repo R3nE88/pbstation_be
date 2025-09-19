@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 from models.detalle_venta import DetalleVenta  # Importar el modelo DetalleVenta
@@ -10,7 +11,7 @@ class Cotizacion(BaseModel): #Entidad #modelo
     usuario_id: str
     sucursal_id: str
     detalles: list[DetalleVenta]
-    fecha_cotizacion: str
+    fecha_cotizacion: datetime
     comentarios_venta: str
     subtotal: Decimal
     descuento: Decimal

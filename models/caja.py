@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 
@@ -7,11 +8,9 @@ class Caja(BaseModel):
     folio: str | None = None # Folio legible (ej. "CAJA-0012")
     usuario_id: str        # Usuario o cajero que abrió la caja
     sucursal_id: str       # A qué sucursal pertenece
-    fecha_apertura: str    # Al abrir caja
-    fecha_cierre: str | None = None  # Al cerrar caja
-    #fondo_inicial: Decimal       # Monto inicial en caja
+    fecha_apertura: datetime      # Al abrir caja
+    fecha_cierre: datetime | None = None  # Al cerrar caja
     venta_total: Decimal | None = None
     estado: str = "abierta"         # "abierta", "cerrada"
-    #ventas_ids: list[str] = []      # Referencia a ventas registradas
     cortes_ids: list[str] = []
     tipo_cambio: float

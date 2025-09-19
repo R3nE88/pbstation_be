@@ -1,5 +1,6 @@
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status, Depends
+from pymongo import DESCENDING
 from core.database import db_client
 from generador_folio import generar_folio_cotizacion, obtener_nombre_sucursal
 from models.cotizacion import Cotizacion
@@ -12,7 +13,8 @@ router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 
 @router.get("/all", response_model=list[Cotizacion])
 async def obtener_cotizaciones(token: str = Depends(validar_token)):
-    return cotizaciones_schema(db_client.local.cotizaciones.find())
+    cotizaciones = db_client.local.cotizaciones.find().sort("fecha_cotizacion", DESCENDING)
+    return cotizaciones_schema(cotizaciones)
 
 @router.get("/{id}") #path
 async def obtener_cotizacion_path(id: str, token: str = Depends(validar_token)):

@@ -15,7 +15,7 @@ def verificar_cotizaciones_vencidas():
 
     vencidas = []
     for c in cotizaciones:
-        fecha = datetime.strptime(c["fecha_cotizacion"], "%Y-%m-%d %H:%M:%S.%f")
+        fecha = c["fecha_cotizacion"]
         if fecha.month < hoy.month or fecha.year < hoy.year:
             vencidas.append(c["_id"])
 

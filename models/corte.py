@@ -1,19 +1,21 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 from models.movimiento_caja import MovimientoCaja  # Importar el modelo MovimientoCaja
 from typing import List
 
 class Desglose(BaseModel):
-    impresora_id: float
+    denominacion: float
     cantidad: int
 
 class Corte(BaseModel):
     id: str | None = None
     folio: str | None = None
     usuario_id: str       #usuario que realizo el corte
+    usuario_id_cerro: str | None = None
     sucursal_id: str
-    fecha: str | None = None          #cuando se realizo el corte
-    contadores_iniciales: dict[str, int] = {} 
+    fecha_apertura: datetime | None = None
+    fecha_corte: datetime | None = None          #cuando se realizo el corte
     contadores_finales: dict[str, int] | None = None  #contadores en el momento del corte
     fondo_inicial: Decimal | None = None
     proximo_fondo: Decimal | None = None  #efectivo que se retiro para dejar para el proximo corte

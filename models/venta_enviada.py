@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 from models.detalle_venta import DetalleVenta  # Importar el modelo DetalleVenta
@@ -17,5 +18,5 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     descuento: Decimal
     iva: Decimal
     total: Decimal
-    fecha_envio: str
+    fecha_envio: datetime
     compu: str

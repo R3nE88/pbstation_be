@@ -12,13 +12,14 @@ router = APIRouter(prefix="/impresoras", tags=["impresoras"])
 async def obtener_impresoras(token: str = Depends(validar_token)):
     return impresoras_schema(db_client.local.impresoras.find())
 
-@router.get("/{sucursal_id}", response_model=list[Impresora])
+@router.get("/sucursal/{sucursal_id}", response_model=list[Impresora])
 async def obtener_impresoras_sucursal(sucursal_id: str, token: str = Depends(validar_token)):
     impresoras = db_client.local.impresoras.find({"sucursal_id": sucursal_id})
     return impresoras_schema(impresoras)
 
 @router.get("/{id}") #path
 async def obtener_impresora_path(id: str, token: str = Depends(validar_token)):
+    print("ID recibido (path):", id)
     return search_impresora("_id", ObjectId(id))
 
 
@@ -33,8 +34,9 @@ async def crear_impresora(impresora: Impresora, token: str = Depends(validar_tok
     id = db_client.local.impresoras.insert_one(impresora_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     
     nueva_impresora = impresora_schema(db_client.local.impresoras.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
-
-    await manager.broadcast(f"post-impresora:{str(id)}") #Notificar a todos
+    
+    sucursal_id = impresora_dict.get("sucursal_id")
+    await manager.broadcast_to_sucursal(f"post-impresora:{str(id)}", sucursal_id)
 
     return Impresora(**nueva_impresora) #el ** sirve para pasar los valores del diccionario
 
@@ -54,26 +56,28 @@ async def actualizar_impresora(impresora: Impresora, token: str = Depends(valida
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la impresora (put)')
     
-    await manager.broadcast(f"put-impresora:{str(ObjectId(impresora.id))}") #Notificar a todos
+    sucursal_id = impresora_dict.get("sucursal_id")
+    await manager.broadcast_to_sucursal(f"put-impresora:{str(ObjectId(impresora.id))}", sucursal_id) #Notificar a sucursal
 
     return search_impresora("_id", ObjectId(impresora.id))
 
 
-@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-async def detele_impresora(id: str, token: str = Depends(validar_token)):
+@router.delete("/{id}/{sucursal_id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
+async def detele_impresora(id: str, sucursal_id: str, token: str = Depends(validar_token)):
     found = db_client.local.impresoras.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la impresora')
     else:
-        await manager.broadcast(f"delete-impresora:{str(id)}") #Notificar a todos
+        await manager.broadcast_to_sucursal(f"delete-impresora:{str(id)}", sucursal_id) #Notificar a sucursal
         return {'message':'Eliminado con exito'} 
     
-
+    
 def search_impresora(field: str, key):
+    print("Searching impresora...")
     try:
         impresora = db_client.local.impresoras.find_one({field: key})
-        if not impresora:  # Verificar si no se encontró la impresora
+        if not impresora:
             return None
-        return Impresora(**impresora_schema(impresora))  # el ** sirve para pasar los valores del diccionario
+        return Impresora(**impresora_schema(impresora)) 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar impresora: {str(e)}')

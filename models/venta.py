@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 from models.detalle_venta import DetalleVenta  # Importar el modelo DetalleVenta
@@ -11,9 +12,9 @@ class Venta(BaseModel): #Entidad #modelo
     usuario_id: str
     sucursal_id: str
     pedido_pendiente: bool
-    fecha_entrega: str | None = None
+    fecha_entrega: datetime | None = None
     detalles: list[DetalleVenta]
-    fecha_venta: str | None = None
+    fecha_venta: datetime | None = None
     comentarios_venta: str | None = None
     subtotal: Decimal
     descuento: Decimal

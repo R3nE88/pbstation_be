@@ -1,5 +1,5 @@
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status, Depends, Body
+from fastapi import APIRouter, HTTPException, Response, status, Depends, Body
 from core.database import db_client
 from generador_folio import generar_folio_caja, generar_folio_corte, obtener_nombre_sucursal
 from models.caja import Caja
@@ -45,6 +45,28 @@ async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
     return Caja(**nueva_caja)
 
 
+@router.put("/", response_model=Caja, status_code=status.HTTP_200_OK) #put
+async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
+    print(caja)
+    if not caja.id:  # Validar si el id está presente
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="El campo 'id' es obligatorio para actualizar caja" #se necesita enviar mismo id si no no actualiza
+        )
+
+    caja_dict = caja.model_dump()
+    del caja_dict["id"]
+    caja_dict["venta_total"] = Decimal128(str(caja.venta_total)) if caja.venta_total is not None else None
+    try:
+        db_client.local.productos.find_one_and_replace({"_id":ObjectId(caja.id)}, caja_dict)
+    except:        
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la caja (put)')
+    
+    #await manager.broadcast(f"put-product:{str(ObjectId(producto.id))}") #Notificar a todos
+
+    return Response(status_code=204)#search_caja("_id", ObjectId(caja.id))
+
+
 def search_caja(field: str, key):
     try:
         caja = db_client.local.cajas.find_one({field: key})
@@ -66,7 +88,7 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
             return []
         # Asegura que todos los ids sean ObjectId
         cortes_obj_ids = [ObjectId(cid) if not isinstance(cid, ObjectId) else cid for cid in cortes_ids]
-        cortes = db_client.local.cortes.find({"_id": {"$in": cortes_obj_ids}})
+        cortes = db_client.local.cortes.find({"_id": {"$in": cortes_obj_ids}}).sort("fecha_corte", -1) #-1 ordeno noraml, 1 invertir
         return cortes_schema(cortes)
     except Exception as e:
         raise HTTPException(
@@ -74,26 +96,39 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
             detail=f"Error al obtener los cortes: {str(e)}"
         )
     
-
+    
 @router.get("/{caja_id}/cortes/ultimo", response_model=Corte)
 async def obtener_ultimo_corte(caja_id: str, token: str = Depends(validar_token)):
     try:
+        # 1️⃣ Obtener la caja
         caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada")
+
+        # 2️⃣ Si no hay cortes, devolver error
         cortes_ids = caja.get("cortes_ids", [])
         if not cortes_ids:
             raise HTTPException(status_code=404, detail="La caja no tiene cortes registrados")
-        ultimo_corte_id = cortes_ids[-1]
-        corte = db_client.local.cortes.find_one({"_id": ObjectId(ultimo_corte_id)})
-        if not corte:
+
+        # 3️⃣ Buscar el último corte por fecha_apertura
+        #    Sort -1 → más reciente primero
+        ultimo_corte = db_client.local.cortes.find_one(
+            {"_id": {"$in": [ObjectId(cid) for cid in cortes_ids]}},
+            sort=[("fecha_apertura", -1)]
+        )
+
+        if not ultimo_corte:
             raise HTTPException(status_code=404, detail="Corte no encontrado")
-        return Corte(**corte_schema(corte))
+
+        # 4️⃣ Retornar con tu schema
+        return Corte(**corte_schema(ultimo_corte))
+
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener el último corte: {str(e)}"
         )
+
 
 @router.post("/{caja_id}/cortes", response_model=Corte, status_code=status.HTTP_201_CREATED) #post
 async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_token)):
@@ -136,9 +171,42 @@ async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_t
     return Corte(**nuevo_corte)
 
 
+@router.put("/cortes", response_model=Corte, status_code=status.HTTP_200_OK) #put
+async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
+    if not corte.id:  # Validar si el id está presente
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, 
+            detail="El campo 'id' es obligatorio para actualizar un corte" #se necesita enviar mismo id si no no actualiza
+        )
+
+    corte_dict = corte.model_dump()
+    del corte_dict["id"]
+    corte_dict["fondo_inicial"] = Decimal128(str(corte.fondo_inicial))
+    corte_dict["proximo_fondo"] = Decimal128(str(corte.proximo_fondo)) if corte.proximo_fondo is not None else None
+    corte_dict["conteo_pesos"] = Decimal128(str(corte.conteo_pesos)) if corte.conteo_pesos is not None else None
+    corte_dict["conteo_dolares"] = Decimal128(str(corte.conteo_dolares)) if corte.conteo_dolares is not None else None
+    corte_dict["conteo_debito"] = Decimal128(str(corte.conteo_debito)) if corte.conteo_debito is not None else None
+    corte_dict["conteo_credito"] = Decimal128(str(corte.conteo_credito)) if corte.conteo_credito is not None else None
+    corte_dict["conteo_transf"] = Decimal128(str(corte.conteo_transf)) if corte.conteo_transf is not None else None
+    corte_dict["conteo_total"] = Decimal128(str(corte.conteo_total)) if corte.conteo_total is not None else None
+    corte_dict["venta_pesos"] = Decimal128(str(corte.venta_pesos)) if corte.venta_pesos is not None else None
+    corte_dict["venta_dolares"] = Decimal128(str(corte.venta_dolares)) if corte.venta_dolares is not None else None
+    corte_dict["venta_debito"] = Decimal128(str(corte.venta_debito)) if corte.venta_debito is not None else None
+    corte_dict["venta_credito"] = Decimal128(str(corte.venta_credito)) if corte.venta_credito is not None else None
+    corte_dict["venta_transf"] = Decimal128(str(corte.venta_transf)) if corte.venta_transf is not None else None
+    corte_dict["venta_total"] = Decimal128(str(corte.venta_total)) if corte.venta_total is not None else None
+    corte_dict["diferencia"] = Decimal128(str(corte.diferencia)) if corte.diferencia is not None else None
+    try:
+        db_client.local.cortes.find_one_and_replace({"_id":ObjectId(corte.id)}, corte_dict)
+    except:        
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el corte (put)')
+    
+    #await manager.broadcast(f"put-product:{str(ObjectId(producto.id))}") #Notificar a todos
+
+    return Response(status_code=204)
+
 
 # ---------------------------------------- MOVIMIENTOS DE CAJA ----------------------------------------
-
 @router.get("/{corte_id}/movimientos")
 async def obtener_movimientos(corte_id: str, token: str = Depends(validar_token)):
     # Obtener el corte directamente como diccionario desde MongoDB

@@ -15,11 +15,11 @@ async def obtener_productos(token: str = Depends(validar_token)):
 
 @router.get("/{id}") #path
 async def obtener_producto_path(id: str, token: str = Depends(validar_token)):
-    return search_producto("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
+    return search_producto("_id", ObjectId(id))
     
 @router.get("/") #Query
 async def obtener_producto_query(id: str, token: str = Depends(validar_token)):
-    return search_producto("_id", ObjectId(id)) #objectid se usa porque el id de la base de datos no es un "_id":"id" si no algo poco mas complejo con mas llaves
+    return search_producto("_id", ObjectId(id))
 
 
 @router.post("/", response_model=Producto, status_code=status.HTTP_201_CREATED) #post

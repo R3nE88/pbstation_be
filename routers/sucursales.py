@@ -1,5 +1,6 @@
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status, Depends
+from pymongo import ReturnDocument
 from core.database import db_client
 from models.sucursal import Sucursal
 from schemas.sucursal import sucursales_schema, sucursal_schema
@@ -10,7 +11,7 @@ router = APIRouter(prefix="/sucursales", tags=["sucursales"])
 
 @router.get("/all", response_model=list[Sucursal])
 async def obtener_sucursales(token: str = Depends(validar_token)):
-    return sucursales_schema(db_client.local.sucursales.find())
+    return sucursales_schema(db_client.local.sucursales.find({"activo": True}))
 
 @router.get("/{id}") #path
 async def obtener_sucursal_path(id: str, token: str = Depends(validar_token)):
@@ -60,14 +61,18 @@ async def actualizar_sucursal(sucursal: Sucursal, token: str = Depends(validar_t
     return search_sucursal("_id", ObjectId(sucursal.id))
 
 
-# @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-# async def delete_sucursal(id: str, token: str = Depends(validar_token)):
-#     found = db_client.local.sucursales.find_one_and_delete({"_id": ObjectId(id)})
-#     if not found:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la sucursal')
-#     else:
-#         await manager.broadcast(f"delete-sucursal:{str(id)}") #Notificar a todos
-#         return {'message':'Eliminado con exito'} 
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
+async def delete_sucursal(id: str, token: str = Depends(validar_token)):
+    found = db_client.local.sucursales.find_one_and_update(
+        {"_id": ObjectId(id)},
+        {"$set": {"activo": False}},
+        return_document=ReturnDocument.AFTER
+    )
+    if not found:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la sucursal')
+    else:
+        await manager.broadcast(f"delete-sucursal:{str(id)}") #Notificar a todos
+        return {'message':'Desactivado con exito'}
     
 
 def search_sucursal(field: str, key):

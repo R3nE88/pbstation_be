@@ -1,6 +1,6 @@
 def impresora_schema(impresora) -> dict:
     return {
-        "id":str(impresora["_id"]),
+        "id": str(impresora["_id"]) if impresora.get("_id") else None,
         "numero":impresora["numero"],
         "modelo":impresora["modelo"],
         "serie":impresora["serie"],

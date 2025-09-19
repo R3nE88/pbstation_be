@@ -1,6 +1,7 @@
 from decimal import Decimal
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status, Depends
+from pymongo import ASCENDING, DESCENDING
 from core.database import db_client
 from generador_folio import generar_folio_venta, obtener_nombre_sucursal
 from models.venta import Venta
@@ -11,35 +12,80 @@ from validar_token import validar_token
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
 
-@router.get("/all", response_model=list[Venta])
-async def obtener_ventas(token: str = Depends(validar_token)):
-    return ventas_schema(db_client.local.ventas.find())
+# @router.get("/all", response_model=list[Venta])
+# async def obtener_ventas(token: str = Depends(validar_token)):
+#     return ventas_schema(db_client.local.ventas.find())
 
 
 @router.get("/caja/{caja_id}", response_model=list[Venta])
-async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_token)):
+async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_token), orden: str = "asc"): #asc o desc
     try:
-        # 1. Obtener la caja y sus cortes_ids
-        caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+        # 1) Obtener caja
+        try:
+            caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+        except Exception:
+            raise HTTPException(status_code=400, detail="caja_id inválido")
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada")
+
         cortes_ids = caja.get("cortes_ids", [])
         if not cortes_ids:
             return []
 
-        # 2. Obtener los cortes en el orden de cortes_ids
-        ventas_ordenadas = []
-        for corte_id in cortes_ids:
-            corte = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
+        # helper: asegurar ObjectId
+        def to_oid(x):
+            return x if isinstance(x, ObjectId) else ObjectId(str(x))
+
+        cortes_oids = [to_oid(c) for c in cortes_ids]
+
+        # 2) Traer cortes (una sola consulta)
+        cortes_cursor = db_client.local.cortes.find(
+            {"_id": {"$in": cortes_oids}},
+            {"ventas_ids": 1}  # proyecta solo lo necesario
+        )
+        cortes = {c["_id"]: c for c in cortes_cursor}  # map por id
+
+        # 3) Recolectar ventas_ids en el orden lógico (si quieres mantener orden por corte)
+        ventas_ids_flat = []
+        for corte_id in cortes_oids:
+            corte = cortes.get(corte_id)
             if not corte:
                 continue
-            ventas_ids = corte.get("ventas_ids", [])
-            # 3. Para cada venta_id, obtener la venta y agregarla en orden
-            for venta_id in ventas_ids:
-                venta = db_client.local.ventas.find_one({"_id": ObjectId(venta_id)})
-                if venta:
-                    ventas_ordenadas.append(venta_schema(venta))
-        return ventas_ordenadas
+            ventas_ids_flat.extend(corte.get("ventas_ids", []))
+
+        if not ventas_ids_flat:
+            return []
+
+        # eliminar duplicados pero conservar (opcional) -> aquí eliminamos duplicados para optimizar
+        ventas_oids = list({to_oid(v) for v in ventas_ids_flat})
+
+        # 4) Traer todas las ventas en una sola consulta
+        ventas_cursor = db_client.local.ventas.find(
+            {"_id": {"$in": ventas_oids}}
+        )
+        ventas = list(ventas_cursor)
+
+        # 5) Ordenar por fecha. Probar campos comunes; si no existe, usar timestamp del ObjectId
+        date_fields = ["fecha", "fecha_venta", "fecha_cotizacion", "created_at"]
+
+        def venta_date(v):
+            for f in date_fields:
+                if f in v and v[f]:
+                    return v[f]
+            # fallback: usar el timestamp del ObjectId (generación)
+            _id = v.get("_id")
+            if isinstance(_id, ObjectId):
+                return _id.generation_time
+            return None
+
+        reverse = (orden.lower() != "asc") 
+        ventas_sorted = sorted(ventas, key=lambda v: venta_date(v) or 0, reverse=reverse)
+
+        # 6) Mapear a tu schema/serializador
+        return [venta_schema(v) for v in ventas_sorted]
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -48,18 +94,69 @@ async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_toke
 
 
 @router.get("/corte/{corte_id}", response_model=list[Venta])
-async def obtener_ventas_de_corte(corte_id: str, token: str = Depends(validar_token)):
+async def obtener_ventas_de_corte(
+    corte_id: str,
+    token: str = Depends(validar_token),
+    orden_por: str | None = None,   # e.g. "fecha" -> opcional, si se setea ignora el orden en ventas_ids
+    orden: str = "asc"             # "asc" o "desc"
+):
     try:
-        corte = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
+        # validar corte_id
+        try:
+            corte_oid = ObjectId(corte_id)
+        except Exception:
+            raise HTTPException(status_code=400, detail="corte_id inválido")
+
+        # traer solo ventas_ids (proyección)
+        corte = db_client.local.cortes.find_one({"_id": corte_oid}, {"ventas_ids": 1})
         if not corte:
             raise HTTPException(status_code=404, detail="Corte no encontrado")
-        ventas_ids = corte.get("ventas_ids", [])
-        ventas = []
-        for venta_id in ventas_ids:
-            venta = db_client.local.ventas.find_one({"_id": ObjectId(venta_id)})
-            if venta:
-                ventas.append(venta_schema(venta))
-        return ventas
+
+        ventas_ids_raw = corte.get("ventas_ids", [])
+        if not ventas_ids_raw:
+            return []
+
+        # helpers para normalizar ObjectId / string y obtener claves
+        def to_oid(x):
+            return x if isinstance(x, ObjectId) else ObjectId(str(x))
+
+        def oid_hex(x):
+            return str(to_oid(x))
+
+        # normalizar lista de ObjectId para la consulta
+        ventas_oids = [to_oid(v) for v in ventas_ids_raw]
+
+        # traer todas las ventas con una sola consulta
+        # proyecta solo campos necesarios si quieres: e.g. {"field1":1, "field2":1}
+        ventas_cursor = db_client.local.ventas.find({"_id": {"$in": ventas_oids}})
+        ventas_list = list(ventas_cursor)
+
+        # mapa por _id hex para reconstruir el orden original
+        ventas_map = {str(v["_id"]): v for v in ventas_list}
+
+        if orden_por:  # ordenar por campo específico en lugar del orden en ventas_ids
+            reverse = (orden.lower() != "asc")
+            # proteger si campo no existe en algunas ventas -> usar None al final
+            def key_fn(v):
+                val = v.get(orden_por)
+                # si es None, pondremos un valor por debajo/encima según reverse
+                return (val is None, val)
+            ventas_sorted = sorted(ventas_list, key=key_fn, reverse=reverse)
+            return [venta_schema(v) for v in ventas_sorted]
+
+        # reconstruir respetando el orden de ventas_ids en el corte
+        ventas_ordenadas = []
+        for v_raw in ventas_ids_raw:
+            k = oid_hex(v_raw)
+            v = ventas_map.get(k)
+            if v:
+                ventas_ordenadas.append(venta_schema(v))
+            # si no existe la venta (borrada/inconsistente) la ignoramos
+
+        return ventas_ordenadas
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -67,47 +164,47 @@ async def obtener_ventas_de_corte(corte_id: str, token: str = Depends(validar_to
         )
     
 
-@router.get("/corte/{corte_id}/por-producto")
-async def obtener_ventas_por_producto(corte_id: str, token: str = Depends(validar_token)):
-    try:
-        corte = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
-        if not corte:
-            raise HTTPException(status_code=404, detail="Corte no encontrado")
-        ventas_ids = corte.get("ventas_ids", [])
-        resumen: dict[str, dict] = {}
+# @router.get("/corte/{corte_id}/por-producto")
+# async def obtener_ventas_por_producto(corte_id: str, token: str = Depends(validar_token)):
+#     try:
+#         corte = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
+#         if not corte:
+#             raise HTTPException(status_code=404, detail="Corte no encontrado")
+#         ventas_ids = corte.get("ventas_ids", [])
+#         resumen: dict[str, dict] = {}
 
-        for venta_id in ventas_ids:
-            venta = db_client.local.ventas.find_one({"_id": ObjectId(venta_id)})
-            if not venta:
-                continue
-            for detalle in venta.get("detalles", []):
-                producto_id = detalle["producto_id"]
+#         for venta_id in ventas_ids:
+#             venta = db_client.local.ventas.find_one({"_id": ObjectId(venta_id)})
+#             if not venta:
+#                 continue
+#             for detalle in venta.get("detalles", []):
+#                 producto_id = detalle["producto_id"]
 
-                if producto_id not in resumen:
-                    resumen[producto_id] = {
-                        "producto_id": producto_id,
-                        "cantidad": 0,
-                        "subtotal": Decimal("0.00"),
-                        "iva": Decimal("0.00"),
-                        "total": Decimal("0.00"),
-                    }
+#                 if producto_id not in resumen:
+#                     resumen[producto_id] = {
+#                         "producto_id": producto_id,
+#                         "cantidad": 0,
+#                         "subtotal": Decimal("0.00"),
+#                         "iva": Decimal("0.00"),
+#                         "total": Decimal("0.00"),
+#                     }
 
-                cantidad = detalle.get("cantidad", 0)
-                subtotal = Decimal(str(detalle.get("subtotal", Decimal128("0")).to_decimal()))
-                iva = Decimal(str(detalle.get("iva", Decimal128("0")).to_decimal()))
+#                 cantidad = detalle.get("cantidad", 0)
+#                 subtotal = Decimal(str(detalle.get("subtotal", Decimal128("0")).to_decimal()))
+#                 iva = Decimal(str(detalle.get("iva", Decimal128("0")).to_decimal()))
 
-                resumen[producto_id]["cantidad"] += cantidad
-                resumen[producto_id]["subtotal"] += subtotal - iva
-                resumen[producto_id]["iva"] += iva
-                resumen[producto_id]["total"] += subtotal
+#                 resumen[producto_id]["cantidad"] += cantidad
+#                 resumen[producto_id]["subtotal"] += subtotal - iva
+#                 resumen[producto_id]["iva"] += iva
+#                 resumen[producto_id]["total"] += subtotal
 
-        return list(resumen.values())
+#         return list(resumen.values())
 
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error al obtener las ventas por producto: {str(e)}"
-        )
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail=f"Error al obtener las ventas por producto: {str(e)}"
+#         )
 
 
 @router.get("/{id}") #path

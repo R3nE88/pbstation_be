@@ -1,3 +1,4 @@
+from datetime import datetime
 from pydantic import BaseModel
 from decimal import Decimal
 from typing import Literal
@@ -8,4 +9,4 @@ class MovimientoCaja(BaseModel):
     tipo: Literal['entrada', 'retiro']  # Entrada o salida
     monto: float            # Monto del movimiento
     motivo: str               # Justificación breve (ej: "Pago proveedor", "Ajuste")
-    fecha: str                # fecha de registro del movimiento
+    fecha: datetime                # fecha de registro del movimiento
