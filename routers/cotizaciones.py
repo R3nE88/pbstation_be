@@ -2,7 +2,7 @@ from bson import ObjectId
 from fastapi import APIRouter, HTTPException, status, Depends
 from pymongo import DESCENDING
 from core.database import db_client
-from generador_folio import generar_folio_cotizacion, obtener_nombre_sucursal
+from generador_folio import generar_folio_cotizacion
 from models.cotizacion import Cotizacion
 from schemas.cotizacion import cotizaciones_schema, cotizacion_schema
 from routers.websocket import manager
@@ -25,7 +25,6 @@ async def obtener_cotizacion_query(id: str, token: str = Depends(validar_token))
     return search_cotizaciones("_id", ObjectId(id))
 
 #TODO: obtener cotizaciones por sucursal
-
 
 @router.post("/", response_model=Cotizacion, status_code=status.HTTP_201_CREATED) #post
 async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_token)):
@@ -56,22 +55,11 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
     await manager.broadcast(f"post-cotizacion:{str(id)}")
     return Cotizacion(**nueva_cotizacion)
 
-
 def search_cotizaciones(field: str, key):
     try:
         cotizacion = db_client.local.cotizaciones.find_one({field: key})
         if not cotizacion:  # Verificar si no se encontró la cotizacion
-            return None
+            raise HTTPException(status_code=404, detail="Cotizacion no encontrado")
         return Cotizacion(**cotizacion_schema(cotizacion))  # el ** sirve para pasar los valores del diccionario
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar la cotizacion: {str(e)}')
-
-
-# @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-# async def detele_venta(id: str, token: str = Depends(validar_token)):
-#     found = db_client.local.ventas.find_one_and_delete({"_id": ObjectId(id)})
-#     if not found:
-#         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la venta')
-#     else:
-#         await manager.broadcast(f"delete-venta:{str(id)}") #Notificar a todos
-#         return {'message':'Eliminada con exito'} 

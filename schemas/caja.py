@@ -9,11 +9,9 @@ def caja_schema(caja) -> dict:
         "sucursal_id": caja["sucursal_id"],
         "fecha_apertura": caja["fecha_apertura"],
         "fecha_cierre": caja["fecha_cierre"],
-        #"fondo_inicial": float(caja["fondo_inicial"].to_decimal()),
         "venta_total": decimal_to_float(caja["venta_total"]),
-        "estado": caja["estado"],
-        #"ventas_ids": caja["ventas_ids"],
-        "cortes_ids": caja["cortes_ids"],
+        "estado": caja["estado"], 
+        "cortes_ids": [str(oid) for oid in caja.get("cortes_ids", [])] ,
         "tipo_cambio": caja["tipo_cambio"],
     }
 

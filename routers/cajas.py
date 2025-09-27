@@ -1,7 +1,7 @@
 from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Response, status, Depends, Body
 from core.database import db_client
-from generador_folio import generar_folio_caja, generar_folio_corte, obtener_nombre_sucursal
+from generador_folio import generar_folio_caja, generar_folio_corte
 from models.caja import Caja
 from models.corte import Corte
 from schemas.caja import cajas_schema, caja_schema
@@ -17,16 +17,13 @@ router = APIRouter(prefix="/cajas", tags=["cajas"])
 async def obtener_cajas(token: str = Depends(validar_token)):
     return cajas_schema(db_client.local.cajas.find())
 
-
 @router.get("/{id}") #path
 async def obtener_caja_path(id: str, token: str = Depends(validar_token)):
     return search_caja("_id", ObjectId(id))
-    
 
 @router.get("/") #Query
 async def obtener_caja_query(id: str, token: str = Depends(validar_token)):
     return search_caja("_id", ObjectId(id))
-
 
 @router.post("/", response_model=Caja, status_code=status.HTTP_201_CREATED) #post
 async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
@@ -36,14 +33,13 @@ async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
     caja_dict["folio"] = generar_folio_caja(db_client.local)
 
     del caja_dict["id"] #quitar el id para que no se guarde como null
-    #caja_dict["fondo_inicial"] = Decimal128(str(caja_dict["fondo_inicial"]))
     caja_dict["venta_total"] = Decimal128(str(caja_dict["venta_total"])) if caja_dict["venta_total"] is not None else None
+    caja_dict["cortes_ids"] = []
 
     id = db_client.local.cajas.insert_one(caja_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_caja = caja_schema(db_client.local.cajas.find_one({"_id":id}))
     
     return Caja(**nueva_caja)
-
 
 @router.put("/", response_model=Caja, status_code=status.HTTP_200_OK) #put
 async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
@@ -58,21 +54,20 @@ async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
     del caja_dict["id"]
     caja_dict["venta_total"] = Decimal128(str(caja.venta_total)) if caja.venta_total is not None else None
     try:
-        db_client.local.productos.find_one_and_replace({"_id":ObjectId(caja.id)}, caja_dict)
+        db_client.local.cajas.find_one_and_replace({"_id":ObjectId(caja.id)}, caja_dict)
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la caja (put)')
-    
-    #await manager.broadcast(f"put-product:{str(ObjectId(producto.id))}") #Notificar a todos
 
     return Response(status_code=204)#search_caja("_id", ObjectId(caja.id))
-
 
 def search_caja(field: str, key):
     try:
         caja = db_client.local.cajas.find_one({field: key})
-        if not caja:  # Verificar si no se encontró la caja
-            return None
-        return Caja(**caja_schema(caja))  # el ** sirve para pasar los valores del diccionario
+        if not caja:  
+            raise HTTPException(status_code=404, detail="Caja no encontrada")  # ✅ CORRECTO
+        return Caja(**caja_schema(caja))
+    except HTTPException:
+        raise  # Re-lanzar HTTPException
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar la caja: {str(e)}')
 
@@ -86,9 +81,7 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
         cortes_ids = caja.get("cortes_ids", [])
         if not cortes_ids:
             return []
-        # Asegura que todos los ids sean ObjectId
-        cortes_obj_ids = [ObjectId(cid) if not isinstance(cid, ObjectId) else cid for cid in cortes_ids]
-        cortes = db_client.local.cortes.find({"_id": {"$in": cortes_obj_ids}}).sort("fecha_corte", -1) #-1 ordeno noraml, 1 invertir
+        cortes = db_client.local.cortes.find({"_id": {"$in": cortes_ids}}).sort("fecha_apertura", 1)
         return cortes_schema(cortes)
     except Exception as e:
         raise HTTPException(
@@ -96,48 +89,37 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
             detail=f"Error al obtener los cortes: {str(e)}"
         )
     
-    
 @router.get("/{caja_id}/cortes/ultimo", response_model=Corte)
 async def obtener_ultimo_corte(caja_id: str, token: str = Depends(validar_token)):
     try:
-        # 1️⃣ Obtener la caja
         caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada")
-
-        # 2️⃣ Si no hay cortes, devolver error
         cortes_ids = caja.get("cortes_ids", [])
         if not cortes_ids:
             raise HTTPException(status_code=404, detail="La caja no tiene cortes registrados")
-
-        # 3️⃣ Buscar el último corte por fecha_apertura
-        #    Sort -1 → más reciente primero
         ultimo_corte = db_client.local.cortes.find_one(
-            {"_id": {"$in": [ObjectId(cid) for cid in cortes_ids]}},
+            {"_id": {"$in": cortes_ids}},
             sort=[("fecha_apertura", -1)]
         )
-
         if not ultimo_corte:
             raise HTTPException(status_code=404, detail="Corte no encontrado")
-
-        # 4️⃣ Retornar con tu schema
         return Corte(**corte_schema(ultimo_corte))
-
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al obtener el último corte: {str(e)}"
         )
 
-
 @router.post("/{caja_id}/cortes", response_model=Corte, status_code=status.HTTP_201_CREATED) #post
 async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_token)):
+    caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+    if not caja:
+        raise HTTPException(status_code=404, detail="Caja no encontrada")
+    
     corte_dict = corte.model_dump()
-
-    #generacion de folio
-    nombre_sucursal = obtener_nombre_sucursal(db_client.local, corte.sucursal_id)
-    corte_dict["folio"] = generar_folio_corte(db_client.local, nombre_sucursal)
-
+    corte_dict["folio"] = generar_folio_corte(db_client.local, corte.sucursal_id)
+    
     del corte_dict["id"] #quitar el id para que no se guarde como null
     corte_dict["fondo_inicial"] = Decimal128(str(corte_dict["fondo_inicial"]))
     corte_dict["proximo_fondo"] = Decimal128(str(corte_dict["proximo_fondo"])) if corte_dict["proximo_fondo"] is not None else None
@@ -165,11 +147,10 @@ async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_t
     # Actualizar la caja agregando el id del nuevo corte a cortes_ids
     db_client.local.cajas.update_one(
         {"_id": ObjectId(caja_id)},
-        {"$push": {"cortes_ids": str(id)}}
+        {"$push": {"cortes_ids": id}}
     )
     
     return Corte(**nuevo_corte)
-
 
 @router.put("/cortes", response_model=Corte, status_code=status.HTTP_200_OK) #put
 async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
@@ -205,7 +186,6 @@ async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
 
     return Response(status_code=204)
 
-
 # ---------------------------------------- MOVIMIENTOS DE CAJA ----------------------------------------
 @router.get("/{corte_id}/movimientos")
 async def obtener_movimientos(corte_id: str, token: str = Depends(validar_token)):
@@ -217,7 +197,6 @@ async def obtener_movimientos(corte_id: str, token: str = Depends(validar_token)
     # Retornar los movimientos usando tu schema para convertir _id a string
     movimientos = corte_dict.get("movimiento_caja", [])
     return movimiento_cajas_schema(movimientos)
-
 
 @router.post("/{corte_id}/movimientos", status_code=status.HTTP_201_CREATED)
 async def agregar_movimiento(corte_id: str, movimiento: dict = Body(...), token: str = Depends(validar_token)):

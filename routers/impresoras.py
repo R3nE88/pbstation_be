@@ -19,7 +19,6 @@ async def obtener_impresoras_sucursal(sucursal_id: str, token: str = Depends(val
 
 @router.get("/{id}") #path
 async def obtener_impresora_path(id: str, token: str = Depends(validar_token)):
-    print("ID recibido (path):", id)
     return search_impresora("_id", ObjectId(id))
 
 
@@ -73,11 +72,10 @@ async def detele_impresora(id: str, sucursal_id: str, token: str = Depends(valid
     
     
 def search_impresora(field: str, key):
-    print("Searching impresora...")
     try:
         impresora = db_client.local.impresoras.find_one({field: key})
         if not impresora:
-            return None
+            raise HTTPException(status_code=404, detail="Impresora no encontrada")
         return Impresora(**impresora_schema(impresora)) 
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar impresora: {str(e)}')

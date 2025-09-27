@@ -1,7 +1,6 @@
 from pydantic import BaseModel
 from decimal import Decimal
 
-
 class Producto(BaseModel): #Entidad #modelo
     id: str | None = None  #None es opcional
     codigo: int

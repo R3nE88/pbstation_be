@@ -19,4 +19,3 @@ def cotizacion_schema(cotizacion) -> dict:
 
 def cotizaciones_schema(cotizaciones) -> list:
     return [cotizacion_schema(cotizacion) for cotizacion in cotizaciones]
-    

@@ -3,7 +3,6 @@ from pydantic import BaseModel
 from decimal import Decimal
 from models.detalle_venta import DetalleVenta  # Importar el modelo DetalleVenta
 
-
 class VentaEnviada(BaseModel): #Entidad #modelo
     id: str | None = None
     cliente_id: str

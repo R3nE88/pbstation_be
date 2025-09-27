@@ -1,7 +1,7 @@
 from datetime import datetime
+from typing import List
 from pydantic import BaseModel
 from decimal import Decimal
-
 
 class Caja(BaseModel):
     id: str | None = None  # ID de base de datos
@@ -12,5 +12,5 @@ class Caja(BaseModel):
     fecha_cierre: datetime | None = None  # Al cerrar caja
     venta_total: Decimal | None = None
     estado: str = "abierta"         # "abierta", "cerrada"
-    cortes_ids: list[str] = []
+    cortes_ids: List[str] = []
     tipo_cambio: float

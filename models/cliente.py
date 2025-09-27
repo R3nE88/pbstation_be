@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 
+from models.adeudo import Adeudo
 
 class Cliente(BaseModel): #Entidad #modelo
     id: str | None = None  #None es opcional
@@ -15,3 +16,4 @@ class Cliente(BaseModel): #Entidad #modelo
     no_int: int | None = None
     colonia: str | None = None
     localidad: str | None = None
+    adeudos: list[Adeudo] | None = None

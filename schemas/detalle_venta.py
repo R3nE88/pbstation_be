@@ -1,6 +1,6 @@
 def detalle_venta_schema(detalle_venta) -> dict:
     return {
-        "id":str(detalle_venta["_id"]),
+        #"id":str(detalle_venta["_id"]),
         "producto_id":detalle_venta["producto_id"],
         "cantidad":detalle_venta["cantidad"],
         "ancho":detalle_venta["ancho"],
@@ -15,4 +15,3 @@ def detalle_venta_schema(detalle_venta) -> dict:
 
 def detalles_venta_schema(detalles_venta) -> list:
     return [detalle_venta_schema(detalle_venta) for detalle_venta in detalles_venta]
-

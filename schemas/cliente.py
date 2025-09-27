@@ -1,3 +1,5 @@
+from schemas.adeudo import adeudos_schema
+
 def cliente_schema(cliente) -> dict:
     return {
         "id":str(cliente["_id"]),
@@ -12,7 +14,8 @@ def cliente_schema(cliente) -> dict:
         "no_ext":cliente["no_ext"],
         "no_int":cliente["no_int"],
         "colonia":cliente["colonia"],
-        "localidad":cliente["localidad"]
+        "localidad":cliente["localidad"],
+        "adeudos": adeudos_schema(cliente["adeudos"]) if "adeudos" in cliente else [],
     }
 
 def clientes_schema(clientes) -> list:

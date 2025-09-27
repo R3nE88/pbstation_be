@@ -26,6 +26,7 @@ def venta_schema(venta) -> dict:
         "recibido_us": decimal_to_float(venta["recibido_us"]),
         "recibido_tarj": decimal_to_float(venta["recibido_tarj"]),
         "recibido_trans": decimal_to_float(venta["recibido_trans"]),
+        "recibido_total": float(venta["recibido_total"].to_decimal()), 
         "abonado_mxn": decimal_to_float(venta["abonado_mxn"]),
         "abonado_us": decimal_to_float(venta["abonado_us"]),
         "abonado_tarj": decimal_to_float(venta["abonado_tarj"]),
@@ -33,8 +34,8 @@ def venta_schema(venta) -> dict:
         "abonado_total": decimal_to_float(venta["abonado_total"]),
         "cambio": decimal_to_float(venta["cambio"]),
         "liquidado": venta["liquidado"],
+        "was_deuda": venta["was_deuda"],
     }
-
 
 def ventas_schema(ventas) -> list:
     return [venta_schema(venta) for venta in ventas]

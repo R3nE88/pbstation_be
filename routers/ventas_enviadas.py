@@ -21,7 +21,6 @@ async def obtener_venta_path(id: str, token: str = Depends(validar_token)):
 async def obtener_venta_query(id: str, token: str = Depends(validar_token)):
     return search_venta("_id", ObjectId(id))
 
-
 @router.post("/", response_model=VentaEnviada, status_code=status.HTTP_201_CREATED) #post
 async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token)):
     venta_dict = venta.model_dump()
@@ -48,7 +47,6 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token)):
     await manager.broadcast(f"ventaenviada:{str(venta_dict["sucursal_id"])}")
     return VentaEnviada(**nueva_venta)
 
-
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
 async def detele_venta(id: str, sucursal: str, token: str = Depends(validar_token)):
      found = db_client.local.ventas_enviadas.find_one_and_delete({"_id": ObjectId(id)})
@@ -58,12 +56,11 @@ async def detele_venta(id: str, sucursal: str, token: str = Depends(validar_toke
          await manager.broadcast(f"ventaenviada:{sucursal}") #Notificar a todos
          return {'message':'Eliminada con exito'} 
      
-
 def search_venta(field: str, key):
     try:
         venta = db_client.local.ventas_enviadas.find_one({field: key})
         if not venta:  # Verificar si no se encontró la venta
-            return None
+            raise HTTPException(status_code=404, detail="Venta enviada no encontrada")
         return VentaEnviada(**venta_enviada_schema(venta))  # el ** sirve para pasar los valores del diccionario
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar la venta: {str(e)}')

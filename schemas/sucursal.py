@@ -7,6 +7,7 @@ def sucursal_schema(sucursal) -> dict:
         "direccion":sucursal["direccion"],
         "localidad":sucursal["localidad"],
         "activo":sucursal["activo"],
+        
     }
 
 def sucursales_schema(sucursales) -> list:
