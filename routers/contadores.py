@@ -1,5 +1,5 @@
-from fastapi import APIRouter, HTTPException, Response, status, Depends
-from typing import List, Optional
+from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
+from typing import Optional
 from core.database import db_client
 from models.contador import Contador
 from schemas.contador import contador_schema
@@ -8,57 +8,76 @@ from validar_token import validar_token
 
 router = APIRouter(prefix="/contadores", tags=["Contadores"])
 
-@router.get("/ultimo/{impresora_id}", response_model=Optional[Contador])
-async def obtener_ultimo_contador(impresora_id: str, token: str = Depends(validar_token)):
-    ultimo = db_client.local.contadores.find_one(
-        {"impresora_id": impresora_id},
-        sort=[("fecha", -1)]
-    )
+@router.get("/{impresora_id}", response_model=Optional[Contador])
+async def obtener_contador(impresora_id: str, token: str = Depends(validar_token)):
+    ultimo = db_client.local.contadores.find_one({"impresora_id": impresora_id})
     if not ultimo:
         raise HTTPException(status_code=404, detail="No se encontraron contadores para esta impresora")
     return contador_schema(ultimo)
 
-@router.post("/{sucursal_id}", response_model=Contador, status_code=status.HTTP_201_CREATED) #post
-async def crear_contador(sucursal_id: str, contador: Contador, token: str = Depends(validar_token)):
+@router.post("/{sucursal_id}", response_model=Contador, status_code=status.HTTP_201_CREATED)
+async def crear_contador(sucursal_id: str, contador: Contador, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     contador_dict = dict(contador)
-    del contador_dict["id"] #quitar el id para que no se guarde como null
-    
-    id = db_client.local.contadores.insert_one(contador_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nuevo_contador = contador_schema(db_client.local.contadores.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
-
+    del contador_dict["id"]
+    id = db_client.local.contadores.insert_one(contador_dict).inserted_id
+    nuevo_contador = contador_schema(db_client.local.contadores.find_one({"_id":id}))
     impresora_id = contador_dict.get("impresora_id")
-    await manager.broadcast_to_sucursal(f"post-contadores:{impresora_id}", sucursal_id) #Notificar a sucursal
-
-    return Contador(**nuevo_contador) #el ** sirve para pasar los valores del diccionario
+    await manager.broadcast_to_sucursal(
+        f"post-contadores:{impresora_id}",
+        sucursal_id,
+        exclude_connection_id=x_connection_id
+    )
+    return Contador(**nuevo_contador)
 
 @router.delete("/{impresora_id}/{sucursal_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def eliminar_contadores_por_impresora(impresora_id: str, sucursal_id: str, token: str = Depends(validar_token)):
+async def eliminar_contadores_por_impresora(impresora_id: str, sucursal_id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     result = db_client.local.contadores.delete_many({"impresora_id": impresora_id})
     if result.deleted_count == 0:
         raise HTTPException(
             status_code=404,
             detail="No se encontraron contadores para esta impresora"
         )
-    await manager.broadcast_to_sucursal(f"delete-contadores:{impresora_id}", sucursal_id) #Notificar a sucursal
+    await manager.broadcast_to_sucursal(
+        f"delete-contadores:{impresora_id}",
+        sucursal_id,
+        exclude_connection_id=x_connection_id
+    )
     return {"mensaje": f"Se eliminaron {result.deleted_count} contadores de la impresora {impresora_id}"}
 
 @router.put("/actual/{impresora_id}/{sucursal_id}/{cantidad}")
-async def sumar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token)):
-    db_client.local.contadores.update_one(
+async def sumar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+    result = db_client.local.contadores.update_one(
         {"impresora_id": impresora_id},
-        {"$inc": {"cantidad": cantidad}},  #{"$set": {"contador": cantidad}}, (inc: sumar, set:reemplazar)
-        upsert=True
-    )  
-    await manager.broadcast_to_sucursal(f"put-contadores:{impresora_id}", sucursal_id) #Notificar a sucursal
+        {"$inc": {"cantidad": cantidad}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe contador para esta impresora"
+        )
+    await manager.broadcast_to_sucursal(
+        f"put-contadores:{impresora_id}",
+        sucursal_id,
+        exclude_connection_id=x_connection_id
+    )
     return Response(status_code=204)
 
 @router.put("/{impresora_id}/{sucursal_id}/{cantidad}")
-async def actualizar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token)):
-    db_client.local.contadores.update_one(
+async def actualizar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+    result = db_client.local.contadores.update_one(
         {"impresora_id": impresora_id},
-        {"$set": {"cantidad": cantidad}},  #{"$set": {"contador": cantidad}}, (inc: sumar, set:reemplazar)
-        upsert=True
+        {"$set": {"cantidad": cantidad}}
     )
+    
+    if result.matched_count == 0:
+        raise HTTPException(
+            status_code=404,
+            detail="No existe contador para esta impresora"
+        )
 
-    await manager.broadcast_to_sucursal(f"put-contadores:{impresora_id}", sucursal_id) #Notificar a sucursal
+    await manager.broadcast_to_sucursal(
+        f"put-contadores:{impresora_id}", 
+        sucursal_id,
+        exclude_connection_id=x_connection_id
+    )
     return Response(status_code=204)

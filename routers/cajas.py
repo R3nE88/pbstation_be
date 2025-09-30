@@ -1,4 +1,5 @@
 from bson import ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Response, status, Depends, Body
 from core.database import db_client
 from generador_folio import generar_folio_caja, generar_folio_corte
@@ -17,13 +18,15 @@ router = APIRouter(prefix="/cajas", tags=["cajas"])
 async def obtener_cajas(token: str = Depends(validar_token)):
     return cajas_schema(db_client.local.cajas.find())
 
-@router.get("/{id}") #path
-async def obtener_caja_path(id: str, token: str = Depends(validar_token)):
-    return search_caja("_id", ObjectId(id))
-
-@router.get("/") #Query
-async def obtener_caja_query(id: str, token: str = Depends(validar_token)):
-    return search_caja("_id", ObjectId(id))
+@router.get("/{id}")
+async def obtener_caja(id: str, token: str = Depends(validar_token)):
+    try:
+        caja = search_caja("_id", ObjectId(id))
+        if caja is None:
+            raise HTTPException(status_code=404, detail="Caja no encontrada")
+        return caja
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
 
 @router.post("/", response_model=Caja, status_code=status.HTTP_201_CREATED) #post
 async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
@@ -49,22 +52,25 @@ async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El campo 'id' es obligatorio para actualizar caja" #se necesita enviar mismo id si no no actualiza
         )
-
     caja_dict = caja.model_dump()
     del caja_dict["id"]
     caja_dict["venta_total"] = Decimal128(str(caja.venta_total)) if caja.venta_total is not None else None
     try:
-        db_client.local.cajas.find_one_and_replace({"_id":ObjectId(caja.id)}, caja_dict)
-    except:        
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la caja (put)')
-
+        result = db_client.local.cajas.find_one_and_replace(
+            {"_id": ObjectId(caja.id)}, 
+            caja_dict
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail='Caja no encontrada')
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="ID inválido")
     return Response(status_code=204)#search_caja("_id", ObjectId(caja.id))
 
 def search_caja(field: str, key):
     try:
         caja = db_client.local.cajas.find_one({field: key})
         if not caja:  
-            raise HTTPException(status_code=404, detail="Caja no encontrada")  # ✅ CORRECTO
+            return None
         return Caja(**caja_schema(caja))
     except HTTPException:
         raise  # Re-lanzar HTTPException
@@ -159,7 +165,6 @@ async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
             status_code=status.HTTP_400_BAD_REQUEST, 
             detail="El campo 'id' es obligatorio para actualizar un corte" #se necesita enviar mismo id si no no actualiza
         )
-
     corte_dict = corte.model_dump()
     del corte_dict["id"]
     corte_dict["fondo_inicial"] = Decimal128(str(corte.fondo_inicial))
@@ -178,12 +183,14 @@ async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
     corte_dict["venta_total"] = Decimal128(str(corte.venta_total)) if corte.venta_total is not None else None
     corte_dict["diferencia"] = Decimal128(str(corte.diferencia)) if corte.diferencia is not None else None
     try:
-        db_client.local.cortes.find_one_and_replace({"_id":ObjectId(corte.id)}, corte_dict)
+        result = db_client.local.cortes.find_one_and_replace(
+            {"_id":ObjectId(corte.id)},
+            corte_dict
+        )
+        if not result:
+            raise HTTPException(status_code=404, detail='Corte no encontrado')
     except:        
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el corte (put)')
-    
-    #await manager.broadcast(f"put-product:{str(ObjectId(producto.id))}") #Notificar a todos
-
     return Response(status_code=204)
 
 # ---------------------------------------- MOVIMIENTOS DE CAJA ----------------------------------------
@@ -193,7 +200,6 @@ async def obtener_movimientos(corte_id: str, token: str = Depends(validar_token)
     corte_dict = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
     if not corte_dict:
         raise HTTPException(status_code=404, detail="Corte no encontrada")
-    
     # Retornar los movimientos usando tu schema para convertir _id a string
     movimientos = corte_dict.get("movimiento_caja", [])
     return movimiento_cajas_schema(movimientos)
@@ -241,5 +247,4 @@ async def eliminar_movimiento(corte_id: str, mov_id: str, token: str = Depends(v
     )
     if result.modified_count == 0:
         raise HTTPException(status_code=404, detail="Movimiento o corte no encontrado")
-
     return {"mensaje": "Movimiento eliminado", "movimiento_id": mov_id}

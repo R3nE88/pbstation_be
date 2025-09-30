@@ -1,6 +1,8 @@
 
+from typing import Optional
 from bson import ObjectId
-from fastapi import APIRouter, HTTPException, status, Depends
+from bson.errors import InvalidId
+from fastapi import APIRouter, HTTPException, Header, status, Depends
 from pymongo import ASCENDING, DESCENDING
 from core.database import db_client
 from generador_folio import generar_folio_venta
@@ -13,7 +15,7 @@ from validar_token import validar_token
 router = APIRouter(prefix="/ventas", tags=["ventas"])
 
 @router.get("/caja/{caja_id}", response_model=list[Venta])
-async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_token), orden: str = "asc"): #asc o desc
+async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_token), orden: str = "asc"):
     try:
         try:
             caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
@@ -30,44 +32,25 @@ async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_toke
             return x if isinstance(x, ObjectId) else ObjectId(str(x))
 
         cortes_oids = [to_oid(c) for c in cortes_ids]
-
         cortes_cursor = db_client.local.cortes.find(
             {"_id": {"$in": cortes_oids}},
-            {"ventas_ids": 1}  # proyecta solo lo necesario
+            {"ventas_ids": 1}
         )
-        cortes = {c["_id"]: c for c in cortes_cursor}  # map por id
-
+        cortes = {c["_id"]: c for c in cortes_cursor}
         ventas_ids_flat = []
         for corte_id in cortes_oids:
             corte = cortes.get(corte_id)
             if not corte:
                 continue
             ventas_ids_flat.extend(corte.get("ventas_ids", []))
-
         if not ventas_ids_flat:
             return []
 
         ventas_oids = list({to_oid(v) for v in ventas_ids_flat})
-
-        ventas_cursor = db_client.local.ventas.find(
-            {"_id": {"$in": ventas_oids}}
-        )
+        ventas_cursor = db_client.local.ventas.find({"_id": {"$in": ventas_oids}})
         ventas = list(ventas_cursor)
-
-        #Ordenar por fecha. Probar campos comunes; si no existe, usar timestamp del ObjectId
-        date_fields = ["fecha", "fecha_venta", "fecha_cotizacion", "created_at"]
-        def venta_date(v):
-            for f in date_fields:
-                if f in v and v[f]:
-                    return v[f]
-            # fallback: usar el timestamp del ObjectId (generación)
-            _id = v.get("_id")
-            if isinstance(_id, ObjectId):
-                return _id.generation_time
-            return None
-
         reverse = (orden.lower() != "asc") 
-        ventas_sorted = sorted(ventas, key=lambda v: venta_date(v) or 0, reverse=reverse)
+        ventas_sorted = sorted(ventas, key=lambda v: v.get("fecha_venta") or v["_id"].generation_time, reverse=reverse)
 
         return [venta_schema(v) for v in ventas_sorted]
 
@@ -80,19 +63,13 @@ async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_toke
         )
 
 @router.get("/corte/{corte_id}", response_model=list[Venta])
-async def obtener_ventas_de_corte(
-    corte_id: str,
-    token: str = Depends(validar_token),
-    orden: str = "asc"             # "asc" o "desc"
-):
+async def obtener_ventas_de_corte(corte_id: str, token: str = Depends(validar_token), orden: str = "asc"):
     try:
-        # validar corte_id
         try:
             corte_oid = ObjectId(corte_id)
         except Exception:
             raise HTTPException(status_code=400, detail="corte_id inválido")
 
-        # traer solo ventas_ids (proyección)
         corte = db_client.local.cortes.find_one({"_id": corte_oid}, {"ventas_ids": 1})
         if not corte:
             raise HTTPException(status_code=404, detail="Corte no encontrado")
@@ -101,32 +78,17 @@ async def obtener_ventas_de_corte(
         if not ventas_ids_raw:
             return []
 
-        # helpers para normalizar ObjectId / string y obtener claves
         def to_oid(x):
             return x if isinstance(x, ObjectId) else ObjectId(str(x))
 
-        def oid_hex(x):
-            return str(to_oid(x))
-
-        # normalizar lista de ObjectId para la consulta
         ventas_oids = [to_oid(v) for v in ventas_ids_raw]
-
-        # traer todas las ventas con una sola consulta
-        # proyecta solo campos necesarios si quieres: e.g. {"field1":1, "field2":1}
         ventas_cursor = db_client.local.ventas.find({"_id": {"$in": ventas_oids}})
-        ventas_list = list(ventas_cursor)
-
-        # mapa por _id hex para reconstruir el orden original
-        ventas_map = {str(v["_id"]): v for v in ventas_list}
-
-        # reconstruir respetando el orden de ventas_ids en el corte
+        ventas_map = {str(v["_id"]): v for v in ventas_cursor}
         ventas_ordenadas = []
         for v_raw in ventas_ids_raw:
-            k = oid_hex(v_raw)
-            v = ventas_map.get(k)
+            v = ventas_map.get(str(to_oid(v_raw)))
             if v:
                 ventas_ordenadas.append(venta_schema(v))
-            # si no existe la venta (borrada/inconsistente) la ignoramos
 
         return ventas_ordenadas
 
@@ -138,14 +100,16 @@ async def obtener_ventas_de_corte(
             detail=f"Error al obtener las ventas del corte: {str(e)}"
         )
     
-@router.get("/{id}") #path
-async def obtener_venta_path(id: str, token: str = Depends(validar_token)):
-    return search_venta("_id", ObjectId(id))
+@router.get("/{id}")
+async def obtener_venta(id: str, token: str = Depends(validar_token)):
+    try:
+        venta = search_venta("_id", ObjectId(id))
+        if venta is None:
+            raise HTTPException(status_code=404, detail="VentaEnviada no encontrada")
+        return venta
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
     
-@router.get("/") #Query
-async def obtener_venta_query(id: str, token: str = Depends(validar_token)):
-    return search_venta("_id", ObjectId(id))
-
 @router.post("/por-id", response_model=list[Venta])
 async def obtener_ventas_por_ids(
     ventas_ids: list[str],
@@ -181,13 +145,11 @@ async def obtener_ventas_por_ids(
         )
 
 @router.post("/{corte_id}", response_model=Venta, status_code=status.HTTP_201_CREATED) #post
-async def crear_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = Depends(validar_token)):
+async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     venta_dict = venta.model_dump()
-
     #generacion de folio
     if not venta_dict.get("folio"):
         venta_dict["folio"] = generar_folio_venta(db_client.local, venta.sucursal_id)
-
     venta_dict["detalles"] = [d.model_dump() for d in venta.detalles]
     del venta_dict["id"] #quitar el id para que no se guarde como null
     venta_dict["subtotal"] = Decimal128(venta_dict["subtotal"])
@@ -205,25 +167,21 @@ async def crear_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
     venta_dict["abonado_trans"] = Decimal128(venta_dict["abonado_trans"]) if venta_dict.get("abonado_trans") is not None else None
     venta_dict["abonado_total"] = Decimal128(venta_dict["abonado_total"]) if venta_dict.get("abonado_total") is not None else None
     venta_dict["cambio"] = Decimal128(venta_dict["cambio"]) if venta_dict.get("cambio") is not None else None
-
     for detalle in venta_dict["detalles"]:
         detalle["descuento_aplicado"] = Decimal128(detalle["descuento_aplicado"])
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
-        
-
     id = db_client.local.ventas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_venta = venta_schema(db_client.local.ventas.find_one({"_id":id}))
-
-    # Actualizar el corte agregando el id de la nueva venta a ventas_ids
     db_client.local.cortes.update_one(
         {"_id": ObjectId(corte_id)},
         {"$push": {"ventas_ids": str(id)}}
     )
-
-    if is_deuda:
-        await manager.broadcast(f"delete-venta-deuda:{str(ObjectId(venta.id))}")
-
+    if is_deuda: # si es deuda, notificar a los demas
+        await manager.broadcast(
+            f"delete-venta-deuda:{str(ObjectId(venta.id))}",
+            exclude_connection_id=x_connection_id
+        )
     return Venta(**nueva_venta)
 
 @router.patch("/{venta_id}/marcar-deuda", response_model=Venta, status_code=status.HTTP_200_OK)
@@ -232,22 +190,18 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
         venta_oid = ObjectId(venta_id)
     except Exception:
         raise HTTPException(status_code=400, detail="ID de venta inválido")
-    
     try:
         # Actualizar la venta
         db_client.local.ventas.update_one(
             {"_id": venta_oid},
             {"$set": {"liquidado": True}}
         )
-        
         # Obtener y retornar la venta actualizada
         venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
         
         if not venta_actualizada:
             raise HTTPException(status_code=404, detail="Venta no encontrada")
-        
         return Venta(**venta_schema(venta_actualizada))
-        
     except HTTPException:
         raise
     except Exception as e:
@@ -260,7 +214,7 @@ def search_venta(field: str, key):
     try:
         venta = db_client.local.ventas.find_one({field: key})
         if not venta:  # Verificar si no se encontró la venta
-            raise HTTPException(status_code=404, detail="Venta no encontrada")
+            return None
         return Venta(**venta_schema(venta))  # el ** sirve para pasar los valores del diccionario
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar la venta: {str(e)}')
