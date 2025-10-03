@@ -1,3 +1,4 @@
+from bson import ObjectId
 from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
 from typing import Optional
 from core.database import db_client
@@ -44,13 +45,20 @@ async def eliminar_contadores_por_impresora(impresora_id: str, sucursal_id: str,
     )
     return {"mensaje": f"Se eliminaron {result.deleted_count} contadores de la impresora {impresora_id}"}
 
-@router.put("/actual/{impresora_id}/{sucursal_id}/{cantidad}")
-async def sumar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    result = db_client.local.contadores.update_one(
+@router.put("/sumar/{impresora_id}/{sucursal_id}/{cantidad}")
+async def sumar_contador(
+    impresora_id: str,
+    sucursal_id: str,
+    cantidad: int,
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    contador_actualizado = db_client.local.contadores.find_one_and_update(
         {"impresora_id": impresora_id},
-        {"$inc": {"cantidad": cantidad}}
+        {"$inc": {"cantidad": cantidad}},
+        return_document=True
     )
-    if result.matched_count == 0:
+    if not contador_actualizado:
         raise HTTPException(
             status_code=404,
             detail="No existe contador para esta impresora"
@@ -60,24 +68,33 @@ async def sumar_contador(impresora_id: str, sucursal_id: str, cantidad: int, tok
         sucursal_id,
         exclude_connection_id=x_connection_id
     )
-    return Response(status_code=204)
+    return search_contador("_id", contador_actualizado["_id"])
+
 
 @router.put("/{impresora_id}/{sucursal_id}/{cantidad}")
 async def actualizar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    result = db_client.local.contadores.update_one(
+    contador_actualizado = db_client.local.contadores.find_one_and_update(
         {"impresora_id": impresora_id},
-        {"$set": {"cantidad": cantidad}}
+        {"$set": {"cantidad": cantidad}},
+        return_document=True  # Retorna el documento DESPUÉS de actualizarlo
     )
-    
-    if result.matched_count == 0:
+    if not contador_actualizado:
         raise HTTPException(
             status_code=404,
             detail="No existe contador para esta impresora"
         )
-
     await manager.broadcast_to_sucursal(
         f"put-contadores:{impresora_id}", 
         sucursal_id,
         exclude_connection_id=x_connection_id
     )
-    return Response(status_code=204)
+    return search_contador("_id", contador_actualizado["_id"])
+
+def search_contador(field: str, key):
+    try:
+        contador = db_client.local.contadores.find_one({field: key})
+        if not contador:
+            return None
+        return Contador(**contador_schema(contador)) 
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f'Error al buscar contador: {str(e)}')

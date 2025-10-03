@@ -31,6 +31,9 @@ def obtener_prefijo_por_id(db, sucursal_id) -> str:
 def fecha_YYMMDD(hoy: datetime) -> str:
     return hoy.strftime("%y%m%d")
 
+def anio_YYY(hoy: datetime) -> str:
+    return hoy.strftime("%j")
+
 def anio_YY(hoy: datetime) -> str:
     return hoy.strftime("%y")
 
@@ -73,16 +76,16 @@ def obtener_siguiente_consecutivo(db, coleccion: str, prefijo: str, hoy: datetim
     if coleccion == "ventas":
         # prefijo se espera ser la letra de sucursal
         suc = (prefijo or "S")[0]
-        key = f"ventas:{suc}:{hoy.strftime('%Y%m%d')}"  # YYYYMMDD para legibilidad
+        key = f"ventas:{suc}:{fecha_YYMMDD(hoy)}"  # YYYYMMDD para legibilidad
     elif coleccion == "cotizaciones":
-        key = f"cotizaciones:{hoy.strftime('%Y%m%d')}"
+        key = f"cotizaciones:{fecha_YYMMDD(hoy)}"
     elif coleccion == "cajas" or coleccion == "caja":
         key = f"cajas:{anio_YY(hoy)}"
     elif coleccion == "cortes" or coleccion == "corte":
         suc = (prefijo or "S")[0]
-        key = f"cortes:{suc}:{anio_YY(hoy)}"
+        key = f"cortes:{suc}:{anio_YY(hoy)}{anio_YYY(hoy)}"
     else:
-        key = f"{coleccion}:{prefijo}:{hoy.strftime('%Y%m%d')}"
+        key = f"{coleccion}:{prefijo}:{fecha_YYMMDD(hoy)}"
     return _get_next_seq_atomic(db, key)
 
 # ------------------------------------------------------------------
@@ -93,8 +96,8 @@ def generar_folio_venta(db, sucursal_id) -> str:
     prefijo = obtener_prefijo_por_id(db, sucursal_id)   # 'A', 'AA', o 'S' fallback
     hoy = datetime.now()
     seq = obtener_siguiente_consecutivo(db, "ventas", prefijo, hoy)  # tu función atómica existente
-    consecutivo = pad_number(seq, 3)
-    return f"{prefijo}{fecha_YYMMDD(hoy)}{consecutivo}"
+    consecutivo = pad_number(seq, 2)
+    return f"{fecha_YYMMDD(hoy)}{prefijo}{consecutivo}"
 
 def generar_folio_cotizacion(db) -> str:
     hoy = datetime.now()
@@ -112,7 +115,7 @@ def generar_folio_corte(db, sucursal_id: str) -> str:
     suc_char = prefijo
     hoy = datetime.now()
     seq = obtener_siguiente_consecutivo(db, "cortes", suc_char, hoy)
-    return f"T{suc_char}{fecha_YYMMDD(hoy)}{pad_number(seq, 2)}"
+    return f"{anio_YY(hoy)}{anio_YYY(hoy)}{suc_char}{pad_number(seq, 1)}"
 
 # ------------------------------------------------------------------
 # Ejemplos de uso (comentados)
@@ -121,20 +124,21 @@ def generar_folio_corte(db, sucursal_id: str) -> str:
 # from core.database import db_client
 # print('Ejemplo de venta')
 # sucursal_id = '68d1ceb9b0954102e87eaf9b'
-# print(generar_folio_venta(db_client.local, sucursal_id))
-# print(generar_folio_cotizacion(db_client.local))
-# print(generar_folio_caja(db_client.local))
-# print(generar_folio_corte(db_client.local, sucursal_id))
+# for _ in range(1):
+#     print(generar_folio_venta(db_client.local, sucursal_id))
+#     print(generar_folio_cotizacion(db_client.local))
+#     print(generar_folio_caja(db_client.local))
+#     print(generar_folio_corte(db_client.local, sucursal_id))
 
 #Formatos de folios
-#Venta: [Sucursal][fecha][consecutivo]
+#Venta: [fecha][Sucursal][consecutivo_2]
 #ejemplo A250922029
 
-#Cotizaciones: [CT][fecha][consecutivo]
+#Cotizaciones: [CT][fecha][consecutivo_3]
 #ejemplo 250922023
 
-#Caja: [CJ][Año][consecutivo]
+#Caja: [CJ][Año][consecutivo_3]
 #ejemplo CJ25019
 
-#Corte: [T][Sucusal][fecha][consecutivo_2]
+#Corte: [Año][DiaDelAño][Sucusal][consecutivo_1]
 #ejemplo TA25081401
