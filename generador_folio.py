@@ -123,12 +123,16 @@ def generar_folio_corte(db, sucursal_id: str) -> str:
 # from pymongo import MongoClient
 # from core.database import db_client
 # print('Ejemplo de venta')
-# sucursal_id = '68d1ceb9b0954102e87eaf9b'
+# sucursal_id = '68d1cedcb0954102e87eaf9c'
 # for _ in range(1):
 #     print(generar_folio_venta(db_client.local, sucursal_id))
 #     print(generar_folio_cotizacion(db_client.local))
 #     print(generar_folio_caja(db_client.local))
-#     print(generar_folio_corte(db_client.local, sucursal_id))
+#     print(generar_folio_corte(db_client.local, sucursal_id))#
+# #
+# 7: 68d1ceb9b0954102e87eaf9b
+# 38: 68d1cedcb0954102e87eaf9c
+# 5: 68d1cf02b0954102e87eaf9d
 
 #Formatos de folios
 #Venta: [fecha][Sucursal][consecutivo_2]

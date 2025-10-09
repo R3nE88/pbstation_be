@@ -34,3 +34,5 @@ class Venta(BaseModel): #Entidad #modelo
     cambio: Decimal
     liquidado: bool
     was_deuda: bool | None = None
+    cancelado : bool | None = None
+    motivo_cancelacion: str | None = None

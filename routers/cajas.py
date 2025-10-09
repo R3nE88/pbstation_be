@@ -270,35 +270,56 @@ async def agregar_movimiento(corte_id: str, movimiento: dict = Body(...), token:
         raise HTTPException(status_code=404, detail="Corte no encontrado")
     return movimiento_caja_schema(movimiento_dict)
 
-# @router.put("/{corte_id}/movimientos/{mov_id}")
-# async def actualizar_movimiento(corte_id: str, mov_id: str, movimiento: dict = Body(...), token: str = Depends(validar_token)):
-#     movimiento["_id"] = ObjectId(mov_id)
-#     movimiento["monto"] = float(movimiento["monto"])
+# ----------------------------------------  OTROS  ----------------------------------------
 
-#     result = db_client.local.cortes.update_one(
-#         {"_id": ObjectId(corte_id), "movimiento_caja._id": ObjectId(mov_id)},
-#         {"$set": {"movimiento_caja.$": movimiento}}
-#     )
-#     if result.modified_count == 0:
-#         raise HTTPException(status_code=404, detail="Movimiento o corte no encontrado")
-
-#     return {
-#         "mensaje": "Movimiento actualizado",
-#         "movimiento": movimiento_caja_schema(movimiento)
-#     }
-
-# @router.delete("/{corte_id}/movimientos/{mov_id}")
-# async def eliminar_movimiento(corte_id: str, mov_id: str, token: str = Depends(validar_token)):
-#     result = db_client.local.cortes.update_one(
-#         {"_id": ObjectId(corte_id)},
-#         {"$pull": {"movimiento_caja": {"_id": ObjectId(mov_id)}}}
-#     )
-#     if result.modified_count == 0:
-#         raise HTTPException(status_code=404, detail="Movimiento o corte no encontrado")
-#     return {"mensaje": "Movimiento eliminado", "movimiento_id": mov_id}
-
-
-
+@router.get("/ventas/{venta_id}/tipo-cambio")
+async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(validar_token)):
+    try:
+        # Buscar el corte que contiene la venta en su lista de ventas_ids
+        corte = db_client.local.cortes.find_one(
+            {"ventas_ids": venta_id}  # Buscar como string, no como ObjectId
+        )
+        
+        if not corte:
+            raise HTTPException(
+                status_code=404, 
+                detail="No se encontró un corte asociado a esta venta"
+            )
+        
+        # Obtener el _id del corte como string
+        corte_id = str(corte["_id"])
+        
+        # Buscar la caja que contiene este corte_id en su lista de cortes_ids
+        caja = db_client.local.cajas.find_one(
+            {"cortes_ids": corte_id}  # Buscar como string
+        )
+        
+        if not caja:
+            raise HTTPException(
+                status_code=404, 
+                detail="No se encontró una caja asociada al corte"
+            )
+        
+        # Obtener el tipo de cambio
+        tipo_cambio = caja.get("tipo_cambio")
+        
+        if tipo_cambio is None:
+            raise HTTPException(
+                status_code=404, 
+                detail="La caja no tiene tipo de cambio registrado"
+            )
+        
+        return {"tipo_cambio": float(tipo_cambio)}
+        
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al obtener el tipo de cambio: {str(e)}"
+        )
 
 
 # # prueba!!

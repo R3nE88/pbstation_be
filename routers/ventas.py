@@ -210,6 +210,106 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
             detail=f"Error al actualizar la venta: {str(e)}"
         )
 
+@router.patch("/{venta_id}/cancelar", response_model=Venta, status_code=status.HTTP_200_OK)
+async def cancelar_venta(
+    venta_id: str, 
+    motivo_cancelacion: str,
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    try:
+        venta_oid = ObjectId(venta_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID de venta inválido")
+    
+    # Validar que el motivo no esté vacío
+    if not motivo_cancelacion or motivo_cancelacion.strip() == "":
+        raise HTTPException(status_code=400, detail="El motivo de cancelación es requerido")
+    
+    try:
+        # Verificar que la venta existe
+        venta_existente = db_client.local.ventas.find_one({"_id": venta_oid})
+        if not venta_existente:
+            raise HTTPException(status_code=404, detail="Venta no encontrada")
+        
+        # Verificar si la venta ya está cancelada
+        if venta_existente.get("cancelado", False):
+            raise HTTPException(status_code=400, detail="La venta ya está cancelada")
+        
+        # Preparar los campos a actualizar
+        update_fields = {
+            "cancelado": True,
+            "motivo_cancelacion": motivo_cancelacion.strip(),
+            "recibido_mxn": Decimal128("0"),
+            "recibido_us": Decimal128("0"),
+            "recibido_tarj": Decimal128("0"),
+            "recibido_trans": Decimal128("0"),
+            "recibido_total": Decimal128("0"),
+            "abonado_mxn": Decimal128("0"),
+            "abonado_us": Decimal128("0"),
+            "abonado_tarj": Decimal128("0"),
+            "abonado_trans": Decimal128("0"),
+            "abonado_total": Decimal128("0"),
+            "cambio": Decimal128("0")
+        }
+        
+        # Si la venta no está liquidada, marcarla como liquidada y eliminar el adeudo del cliente
+        if not venta_existente.get("liquidado", False):
+            update_fields["liquidado"] = True
+            update_fields["was_deuda"] = False
+            
+            # Obtener el cliente_id de la venta
+            cliente_id = venta_existente.get("cliente_id")
+            
+            if cliente_id:
+                # Convertir a ObjectId si es necesario
+                try:
+                    cliente_oid = ObjectId(cliente_id) if not isinstance(cliente_id, ObjectId) else cliente_id
+                    
+                    # Verificar que el cliente existe
+                    cliente_existente = db_client.local.clientes.find_one({"_id": cliente_oid})
+                    if cliente_existente:
+                        # Eliminar el adeudo del cliente usando $pull
+                        result = db_client.local.clientes.update_one(
+                            {"_id": cliente_oid},
+                            {"$pull": {"adeudos": {"venta_id": str(venta_oid)}}}
+                        )
+                        
+                        # Si se eliminó el adeudo, notificar por WebSocket
+                        if result.modified_count > 0:
+                            await manager.broadcast(
+                                f"put-cliente:{str(cliente_oid)}",
+                                exclude_connection_id=x_connection_id
+                            )
+                except Exception as e:
+                    # Si hay error al procesar el cliente, continuar con la cancelación de la venta
+                    print(f"Advertencia: No se pudo eliminar el adeudo del cliente: {str(e)}")
+        
+        # Actualizar la venta
+        db_client.local.ventas.update_one(
+            {"_id": venta_oid},
+            {"$set": update_fields}
+        )
+        
+        # Obtener y retornar la venta actualizada
+        venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
+        
+        # Notificar por WebSocket la actualización de la venta
+        await manager.broadcast(
+            f"put-venta:{str(venta_oid)}",
+            exclude_connection_id=x_connection_id
+        )
+        
+        return Venta(**venta_schema(venta_actualizada))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al cancelar la venta: {str(e)}"
+        )
+
 def search_venta(field: str, key):
     try:
         venta = db_client.local.ventas.find_one({field: key})

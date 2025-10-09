@@ -35,6 +35,8 @@ def venta_schema(venta) -> dict:
         "cambio": decimal_to_float(venta["cambio"]),
         "liquidado": venta["liquidado"],
         "was_deuda": venta["was_deuda"],
+        "cancelado": venta["cancelado"],
+        "motivo_cancelacion": venta["motivo_cancelacion"]
     }
 
 def ventas_schema(ventas) -> list:

@@ -6,7 +6,7 @@ class DetalleVenta(BaseModel): #Entidad #modelo
     cantidad: int
     ancho: float | None = None
     alto: float | None = None
-    comentarios: str
+    comentarios: str | None = None
     descuento: int
     descuento_aplicado: Decimal
     iva: Decimal

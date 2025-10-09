@@ -8,4 +8,4 @@ class Sucursal(BaseModel): #Entidad #modelo
     direccion: str
     localidad: str
     activo: bool = True
-    prefijo_folio: str | None = None  #Nuevo campo para el prefijo del folio0
+    prefijo_folio: str | None = None  #Nuevo campo para el prefijo del folio
