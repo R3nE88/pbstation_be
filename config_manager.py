@@ -6,8 +6,9 @@ CONFIG_PATH = Path("configuracion.json")
 def cargar_config():
     if not CONFIG_PATH.exists():
         guardar_config({
-            "precio_dolar": 18.0,
-            "iva": 16
+            "precio_dolar": 0,
+            "iva": 0,
+            "last_version": "1.0.0"  # Valor por defecto
         })
     with open(CONFIG_PATH, "r", encoding="utf-8") as f:
         return json.load(f)
