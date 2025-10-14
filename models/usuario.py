@@ -1,3 +1,4 @@
+from typing_extensions import Literal
 from pydantic import BaseModel
 
 class Usuario(BaseModel): #Entidad #modelo
@@ -6,5 +7,5 @@ class Usuario(BaseModel): #Entidad #modelo
     correo: str
     telefono: int
     psw: str | None = None
-    rol: str
+    rol: Literal['empleado', 'admin', 'super']
     activo: bool = True
