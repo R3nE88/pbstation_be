@@ -12,7 +12,7 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     pedido_pendiente: bool
     fecha_entrega: str | None = None
     detalles: list[DetalleVenta]
-    comentarios_venta: str
+    comentarios_venta: str | None = None
     subtotal: Decimal
     descuento: Decimal
     iva: Decimal
