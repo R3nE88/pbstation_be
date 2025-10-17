@@ -275,9 +275,9 @@ async def agregar_movimiento(corte_id: str, movimiento: dict = Body(...), token:
 @router.get("/ventas/{venta_id}/tipo-cambio")
 async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(validar_token)):
     try:
-        # Buscar el corte que contiene la venta en su lista de ventas_ids
+        # Buscar el corte que contiene la venta
         corte = db_client.local.cortes.find_one(
-            {"ventas_ids": venta_id}  # Buscar como string, no como ObjectId
+            {"ventas_ids": venta_id}
         )
         
         if not corte:
@@ -286,12 +286,12 @@ async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(vali
                 detail="No se encontró un corte asociado a esta venta"
             )
         
-        # Obtener el _id del corte como string
-        corte_id = str(corte["_id"])
+        # NO convertir a string, mantener como ObjectId
+        corte_id = corte["_id"]  # Este es un ObjectId
         
-        # Buscar la caja que contiene este corte_id en su lista de cortes_ids
+        # Buscar la caja que contiene este corte_id como ObjectId
         caja = db_client.local.cajas.find_one(
-            {"cortes_ids": corte_id}  # Buscar como string
+            {"cortes_ids": corte_id}  # Ahora busca ObjectId
         )
         
         if not caja:

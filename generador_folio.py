@@ -117,18 +117,25 @@ def generar_folio_corte(db, sucursal_id: str) -> str:
     seq = obtener_siguiente_consecutivo(db, "cortes", suc_char, hoy)
     return f"{anio_YY(hoy)}{anio_YYY(hoy)}{suc_char}{pad_number(seq, 1)}"
 
+def generar_folio_pedido(db, sucursal_id: str) -> str:
+    prefijo = obtener_prefijo_por_id(db, sucursal_id)
+    hoy = datetime.now()
+    seq = obtener_siguiente_consecutivo(db, "pedidos", prefijo, hoy)
+    consecutivo = pad_number(seq, 2)
+    return f"{prefijo}{anio_YY(hoy)}{anio_YYY(hoy)}{consecutivo}"
+
 # ------------------------------------------------------------------
 # Ejemplos de uso (comentados)
 # ------------------------------------------------------------------
 # from pymongo import MongoClient
 # from core.database import db_client
 # print('Ejemplo de venta')
-# sucursal_id = '68d1cedcb0954102e87eaf9c'
+# sucursal_id = '68e3ecbced1d26f44deda640'
 # for _ in range(1):
-#     print(generar_folio_venta(db_client.local, sucursal_id))
-#     print(generar_folio_cotizacion(db_client.local))
-#     print(generar_folio_caja(db_client.local))
-#     print(generar_folio_corte(db_client.local, sucursal_id))#
+#     print(generar_folio_pedido(db_client.local, sucursal_id))
+#    print(generar_folio_cotizacion(db_client.local))
+#    print(generar_folio_caja(db_client.local))
+#    print(generar_folio_corte(db_client.local, sucursal_id))#
 # #
 # 7: 68d1ceb9b0954102e87eaf9b
 # 38: 68d1cedcb0954102e87eaf9c
@@ -136,13 +143,16 @@ def generar_folio_corte(db, sucursal_id: str) -> str:
 
 #Formatos de folios
 #Venta: [fecha][Sucursal][consecutivo_2]
-#ejemplo A250922029
+#ejemplo 251009A03
 
-#Cotizaciones: [CT][fecha][consecutivo_3]
+#Cotizaciones: [fecha][consecutivo_3]
 #ejemplo 250922023
 
 #Caja: [CJ][Año][consecutivo_3]
-#ejemplo CJ25019
+#ejemplo CJ25021
 
 #Corte: [Año][DiaDelAño][Sucusal][consecutivo_1]
-#ejemplo TA25081401
+#ejemplo 25282A1
+
+#Pedidos: [Sucursal][año][diaDelAño][consecutivo_2]
+#ejemplo A2500101

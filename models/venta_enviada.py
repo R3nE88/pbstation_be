@@ -19,3 +19,4 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     total: Decimal
     fecha_envio: datetime
     compu: str
+    pedidos_ids: list[str] | None = None

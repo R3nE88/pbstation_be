@@ -16,7 +16,8 @@ def venta_enviada_schema(venta_enviada) -> dict:
         "iva": float(venta_enviada["iva"].to_decimal()), 
         "total": float(venta_enviada["total"].to_decimal()), 
         "fecha_envio": venta_enviada["fecha_envio"],
-        "compu": venta_enviada["compu"]
+        "compu": venta_enviada["compu"],
+        "pedidos_ids": venta_enviada["pedidos_ids"]
     }
 
 def ventas_enviadas_schema(ventas_enviadas) -> list:
