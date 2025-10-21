@@ -11,7 +11,7 @@ from models.pedido import Pedido
 from schemas.pedido import pedido_schema, pedidos_schema
 from validar_token import validar_token
 from routers.websocket import manager
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from generador_folio import generar_folio_pedido
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
@@ -25,8 +25,21 @@ MAX_TOTAL_SIZE = MAX_UPLOAD_SIZE_GB * 1024 * 1024 * 1024
 
 @router.get("/all", response_model=List[Pedido])
 async def obtener_pedidos(token: str = Depends(validar_token)):
-    pedidos = db_client.local.pedidos.find().sort("fecha", -1)
+    pedidos = db_client.local.pedidos.find().sort("fecha", 1)
     return pedidos_schema(pedidos)
+
+
+@router.get("/{pedido_id}", response_model=Pedido)
+async def obtener_pedido_por_query(pedido_id: str, token: str = Depends(validar_token)):
+    try:
+        pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    except Exception:
+        raise HTTPException(status_code=400, detail="pedido_id inválido")
+
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    return Pedido(**pedido_schema(pedido))
 
 
 @router.post("/", response_model=Pedido, status_code=status.HTTP_201_CREATED)
@@ -188,9 +201,34 @@ async def agregar_archivos_pedido(
     await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     return Pedido(**pedido_actualizado)
 
+@router.get("/{pedido_id}/archivo/{archivo_nombre}")
+async def descargar_archivo_individual(
+    pedido_id: str,
+    archivo_nombre: str,
+    token: str = Depends(validar_token)
+):
+    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+
+    archivos = pedido.get("archivos", [])
+    archivo = next((a for a in archivos if a["nombre"] == archivo_nombre), None)
+    
+    if not archivo:
+        raise HTTPException(status_code=404, detail="Archivo no encontrado")
+
+    ruta = archivo["ruta"]
+    if not os.path.exists(ruta):
+        raise HTTPException(status_code=404, detail="Archivo físico no encontrado")
+
+    return FileResponse(
+        path=ruta,
+        filename=archivo["nombre"],
+        media_type="application/octet-stream"
+    )
 
 @router.get("/{pedido_id}/archivos")
-async def descargar_todos_archivos(
+async def descargar_archivos_zip(
     pedido_id: str,
     token: str = Depends(validar_token)
 ):
