@@ -185,7 +185,7 @@ async def agregar_archivos_pedido(
         db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
-    await manager.broadcast(f"patch-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
+    await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     return Pedido(**pedido_actualizado)
 
 
@@ -251,6 +251,6 @@ async def actualizar_venta_pedido(
         db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
-    await manager.broadcast(f"patch-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
+    await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     
     return Pedido(**pedido_actualizado)
