@@ -1,3 +1,4 @@
+from typing_extensions import Literal
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import datetime
@@ -19,4 +20,4 @@ class Pedido(BaseModel):
     fecha: datetime
     fecha_entrega: datetime
     archivos: List[Archivo]
-    estado: str = "pendiente"
+    estado: Literal['enEspera', 'pendiente', 'produccion', 'terminado', 'enSucursal', 'entregado'] | None = 'pendiente'

@@ -31,7 +31,7 @@ def corte_schema(corte) -> dict:
         "movimiento_caja": movimiento_cajas_schema(corte["movimiento_caja"]),
         "desglose_pesos": corte["desglose_pesos"],
         "desglose_dolares": corte["desglose_dolares"],
-        "ventas_ids": corte["ventas_ids"],
+        "ventas_ids": [str(v_id) if hasattr(v_id, '_type') else str(v_id) for v_id in corte.get("ventas_ids", [])],
         "comentarios": corte["comentarios"],
         "is_cierre": corte["is_cierre"],
     }

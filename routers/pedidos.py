@@ -1,4 +1,5 @@
 from io import BytesIO
+import shutil
 import zipfile
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Header
 from typing import Optional, List
@@ -25,9 +26,10 @@ MAX_TOTAL_SIZE = MAX_UPLOAD_SIZE_GB * 1024 * 1024 * 1024
 
 @router.get("/all", response_model=List[Pedido])
 async def obtener_pedidos(token: str = Depends(validar_token)):
-    pedidos = db_client.local.pedidos.find().sort("fecha", 1)
+    pedidos = db_client.local.pedidos.find(
+        {"estado": {"$ne": "entregado"}}
+    ).sort("fecha", 1)
     return pedidos_schema(pedidos)
-
 
 @router.get("/{pedido_id}", response_model=Pedido)
 async def obtener_pedido_por_query(pedido_id: str, token: str = Depends(validar_token)):
@@ -41,7 +43,6 @@ async def obtener_pedido_por_query(pedido_id: str, token: str = Depends(validar_
 
     return Pedido(**pedido_schema(pedido))
 
-
 @router.post("/", response_model=Pedido, status_code=status.HTTP_201_CREATED)
 async def crear_pedido(
     pedido: str = Form(...),
@@ -49,13 +50,18 @@ async def crear_pedido(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
+    
+
     try:
         pedido_data = json.loads(pedido)
+        
     except json.JSONDecodeError:
         raise HTTPException(status_code=400, detail="Datos del pedido inválidos")
     
     estado = pedido_data.get('estado', 'pendiente')
-    if not archivos and estado != 'en espera':
+    print(pedido_data)
+    print('print')
+    if not archivos and estado != 'enEspera':
         raise HTTPException(
             status_code=400,
             detail="Los pedidos deben tener archivos o estar en estado 'en espera'"
@@ -133,7 +139,6 @@ async def crear_pedido(
     await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     return Pedido(**nuevo_pedido)
 
-
 @router.patch("/{pedido_id}/archivos", response_model=Pedido)
 async def agregar_archivos_pedido(
     pedido_id: str,
@@ -198,7 +203,7 @@ async def agregar_archivos_pedido(
         db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
-    await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
+    await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     return Pedido(**pedido_actualizado)
 
 @router.get("/{pedido_id}/archivo/{archivo_nombre}")
@@ -265,7 +270,6 @@ async def descargar_archivos_zip(
         }
     )
 
-
 @router.patch("/{pedido_id}/venta", response_model=Pedido)
 async def actualizar_venta_pedido(
     pedido_id: str,
@@ -289,6 +293,51 @@ async def actualizar_venta_pedido(
         db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
-    await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
+    await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
+    
+    return Pedido(**pedido_actualizado)
+
+@router.patch("/{pedido_id}/estado", response_model=Pedido)
+async def actualizar_estado_pedido(
+    pedido_id: str,
+    estado: str = Form(...),
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    # Actualizar el estado
+    resultado = db_client.local.pedidos.update_one(
+        {"_id": ObjectId(pedido_id)},
+        {"$set": {"estado": estado}}
+    )
+    
+    if resultado.modified_count == 0:
+        raise HTTPException(status_code=400, detail="No se pudo actualizar el pedido")
+    
+    # Si el estado es "entregado", eliminar los archivos físicos
+    if estado.lower() == "entregado":
+        pedido_dir = os.path.join(UPLOAD_DIR, pedido_id)
+        try:
+            if os.path.exists(pedido_dir):
+                shutil.rmtree(pedido_dir)
+                print(f"Archivos del pedido {pedido_id} eliminados automáticamente")
+                
+                # Vaciar el array de archivos en la base de datos
+                db_client.local.pedidos.update_one(
+                    {"_id": ObjectId(pedido_id)},
+                    {"$set": {"archivos": []}}
+                )
+        except Exception as e:
+            print(f"Advertencia: No se pudieron eliminar archivos del pedido {pedido_id}: {str(e)}")
+            # No lanzamos error para no interrumpir el cambio de estado
+    
+    pedido_actualizado = pedido_schema(
+        db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    )
+    
+    await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     
     return Pedido(**pedido_actualizado)

@@ -6,6 +6,7 @@ def usuario_schema(usuario) -> dict:
         "telefono":usuario["telefono"],
         "psw":usuario["psw"],
         "rol":usuario["rol"],
+        "permisos":usuario["permisos"],
         "activo":usuario["activo"],
     }
 

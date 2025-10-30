@@ -80,6 +80,12 @@ async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
     caja_dict = caja.model_dump()
     del caja_dict["id"]
     caja_dict["venta_total"] = Decimal128(str(caja.venta_total)) if caja.venta_total is not None else None
+    # Asegurar que cortes_ids se guarden como ObjectId en la BD
+    if "cortes_ids" in caja_dict and caja_dict["cortes_ids"] is not None:
+        try:
+            caja_dict["cortes_ids"] = [ObjectId(cid) if isinstance(cid, str) else cid for cid in caja_dict["cortes_ids"]]
+        except InvalidId:
+            raise HTTPException(status_code=400, detail="Uno o más cortes_ids tienen formato inválido")
     try:
         result = db_client.local.cajas.find_one_and_replace(
             {"_id": ObjectId(caja.id)}, 
@@ -276,27 +282,36 @@ async def agregar_movimiento(corte_id: str, movimiento: dict = Body(...), token:
 async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(validar_token)):
     try:
         # Buscar el corte que contiene la venta
-        corte = db_client.local.cortes.find_one(
-            {"ventas_ids": venta_id}
-        )
-        
+        # Primero intentar buscando con la venta_id como string (cuando ventas_ids contiene strings)
+        corte = db_client.local.cortes.find_one({"ventas_ids": venta_id})
+
+        # Si no se encuentra, intentar con ObjectId(venta_id) (cuando ventas_ids contiene ObjectId)
+        if not corte:
+            try:
+                venta_obj = ObjectId(venta_id)
+                corte = db_client.local.cortes.find_one({"ventas_ids": venta_obj})
+            except InvalidId:
+                corte = None
+
         if not corte:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail="No se encontró un corte asociado a esta venta"
             )
-        
-        # NO convertir a string, mantener como ObjectId
-        corte_id = corte["_id"]  # Este es un ObjectId
-        
-        # Buscar la caja que contiene este corte_id como ObjectId
-        caja = db_client.local.cajas.find_one(
-            {"cortes_ids": corte_id}  # Ahora busca ObjectId
-        )
-        
+
+        # Ahora buscar la caja que contiene el corte
+        # Primero intentar con el ObjectId (cuando cortes_ids contiene ObjectId)
+        corte_obj_id = corte["_id"]
+        caja = db_client.local.cajas.find_one({"cortes_ids": corte_obj_id})
+
+        # Si no se encuentra, intentar con el _id convertido a string (cuando cortes_ids contiene strings)
+        if not caja:
+            corte_id_str = str(corte_obj_id)
+            caja = db_client.local.cajas.find_one({"cortes_ids": corte_id_str})
+
         if not caja:
             raise HTTPException(
-                status_code=404, 
+                status_code=404,
                 detail="No se encontró una caja asociada al corte"
             )
         

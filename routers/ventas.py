@@ -175,7 +175,7 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
     nueva_venta = venta_schema(db_client.local.ventas.find_one({"_id":id}))
     db_client.local.cortes.update_one(
         {"_id": ObjectId(corte_id)},
-        {"$push": {"ventas_ids": str(id)}}
+        {"$push": {"ventas_ids": id}}
     )
     if is_deuda: # si es deuda, notificar a los demas
         await manager.broadcast(
@@ -185,7 +185,7 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
     return Venta(**nueva_venta)
 
 @router.patch("/{venta_id}/marcar-deuda", response_model=Venta, status_code=status.HTTP_200_OK)
-async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)):
+async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     try:
         venta_oid = ObjectId(venta_id)
     except Exception:
@@ -201,6 +201,12 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
         
         if not venta_actualizada:
             raise HTTPException(status_code=404, detail="Venta no encontrada")
+        
+        await manager.broadcast(
+            f"update-venta:{str(venta_oid)}",
+            exclude_connection_id=x_connection_id
+        )
+
         return Venta(**venta_schema(venta_actualizada))
     except HTTPException:
         raise
@@ -209,7 +215,7 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
             status_code=500,
             detail=f"Error al actualizar la venta: {str(e)}"
         )
-
+    
 @router.patch("/{venta_id}/cancelar", response_model=Venta, status_code=status.HTTP_200_OK)
 async def cancelar_venta(
     venta_id: str, 
@@ -296,7 +302,7 @@ async def cancelar_venta(
         
         # Notificar por WebSocket la actualización de la venta
         await manager.broadcast(
-            f"put-venta:{str(venta_oid)}",
+            f"update-venta:{str(venta_oid)}",
             exclude_connection_id=x_connection_id
         )
         
@@ -308,6 +314,50 @@ async def cancelar_venta(
         raise HTTPException(
             status_code=500,
             detail=f"Error al cancelar la venta: {str(e)}"
+        )
+
+@router.patch("/marcar-entregada/{folio}", response_model=list[Venta], status_code=status.HTTP_200_OK)
+async def marcar_ventas_entregadas_por_folio(
+    folio: str, 
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    try:
+        # Buscar todas las ventas con ese folio
+        ventas_existentes = list(db_client.local.ventas.find({"folio": folio}))
+        
+        if not ventas_existentes:
+            raise HTTPException(status_code=404, detail=f"No se encontraron ventas con el folio {folio}")
+        
+        # Verificar si todas ya están entregadas
+        todas_entregadas = all(not venta.get("pedido_pendiente", True) for venta in ventas_existentes)
+        if todas_entregadas:
+            raise HTTPException(status_code=400, detail="Todas las ventas con este folio ya están marcadas como entregadas")
+        
+        # Actualizar todas las ventas con ese folio
+        result = db_client.local.ventas.update_many(
+            {"folio": folio},
+            {"$set": {"pedido_pendiente": False}}
+        )
+        
+        # Obtener todas las ventas actualizadas
+        ventas_actualizadas = list(db_client.local.ventas.find({"folio": folio}))
+        
+        # Notificar por WebSocket cada venta actualizada
+        for venta in ventas_actualizadas:
+            await manager.broadcast(
+                f"update-venta:{str(venta['_id'])}",
+                exclude_connection_id=x_connection_id
+            )
+        
+        return [Venta(**venta_schema(venta)) for venta in ventas_actualizadas]
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al marcar las ventas como entregadas: {str(e)}"
         )
 
 def search_venta(field: str, key):

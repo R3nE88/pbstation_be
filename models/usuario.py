@@ -7,5 +7,6 @@ class Usuario(BaseModel): #Entidad #modelo
     correo: str
     telefono: int
     psw: str | None = None
-    rol: Literal['empleado', 'admin', 'super']
+    rol: Literal['vendedor', 'maquilador', 'administrativo'] | None = 'vendedor'
+    permisos: Literal['normal', 'elevado', 'admin'] | None = 'normal'
     activo: bool = True
