@@ -18,7 +18,7 @@ except AttributeError:
 def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
-@router.post('', include_in_schema=False)
+@router.post('',)
 async def login(credentials: dict, token: str = Depends(validar_token)):
     identificador = credentials.get("correo", "").strip().lower()
     psw = credentials.get("psw", "")
