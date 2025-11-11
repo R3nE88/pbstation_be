@@ -10,7 +10,7 @@ def venta_schema(venta) -> dict:
         "cliente_id": venta["cliente_id"],
         "usuario_id": venta["usuario_id"],
         "sucursal_id": venta["sucursal_id"],
-        "pedido_pendiente": venta["pedido_pendiente"],
+        "has_pedido": venta["has_pedido"],
         "fecha_entrega": venta["fecha_entrega"],
         "detalles": detalles_venta_schema(venta["detalles"]),
         "fecha_venta": venta["fecha_venta"],
@@ -36,7 +36,8 @@ def venta_schema(venta) -> dict:
         "liquidado": venta["liquidado"],
         "was_deuda": venta["was_deuda"],
         "cancelado": venta["cancelado"],
-        "motivo_cancelacion": venta["motivo_cancelacion"]
+        "motivo_cancelacion": venta["motivo_cancelacion"],
+        "usuario_id_cancelo": venta["usuario_id_cancelo"]
     }
 
 def ventas_schema(ventas) -> list:

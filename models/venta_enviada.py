@@ -9,7 +9,7 @@ class VentaEnviada(BaseModel): #Entidad #modelo
     usuario_id: str
     usuario: str
     sucursal_id: str
-    pedido_pendiente: bool
+    has_pedido: bool
     fecha_entrega: str | None = None
     detalles: list[DetalleVenta]
     comentarios_venta: str | None = None

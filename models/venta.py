@@ -9,7 +9,7 @@ class Venta(BaseModel): #Entidad #modelo
     cliente_id: str
     usuario_id: str
     sucursal_id: str
-    pedido_pendiente: bool
+    has_pedido: bool
     fecha_entrega: datetime | None = None
     detalles: list[DetalleVenta]
     fecha_venta: datetime | None = None
@@ -34,5 +34,6 @@ class Venta(BaseModel): #Entidad #modelo
     cambio: Decimal
     liquidado: bool
     was_deuda: bool | None = None
-    cancelado : bool | None = None
+    cancelado : bool | None = False
     motivo_cancelacion: str | None = None
+    usuario_id_cancelo: str | None = None

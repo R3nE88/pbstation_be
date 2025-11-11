@@ -7,7 +7,7 @@ def venta_enviada_schema(venta_enviada) -> dict:
         "usuario_id": venta_enviada["usuario_id"],
         "usuario": venta_enviada["usuario"],
         "sucursal_id": venta_enviada["sucursal_id"],
-        "pedido_pendiente": venta_enviada["pedido_pendiente"],
+        "has_pedido": venta_enviada["has_pedido"],
         "fecha_entrega": venta_enviada["fecha_entrega"],
         "detalles": detalles_venta_schema(venta_enviada["detalles"]),
         "comentarios_venta": venta_enviada["comentarios_venta"],

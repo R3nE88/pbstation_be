@@ -220,6 +220,7 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
 async def cancelar_venta(
     venta_id: str, 
     motivo_cancelacion: str,
+    usuario_id_cancelo: str,
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
@@ -246,6 +247,7 @@ async def cancelar_venta(
         update_fields = {
             "cancelado": True,
             "motivo_cancelacion": motivo_cancelacion.strip(),
+            "usuario_id_cancelo": usuario_id_cancelo,
             "recibido_mxn": Decimal128("0"),
             "recibido_us": Decimal128("0"),
             "recibido_tarj": Decimal128("0"),
@@ -316,49 +318,49 @@ async def cancelar_venta(
             detail=f"Error al cancelar la venta: {str(e)}"
         )
 
-@router.patch("/marcar-entregada/{folio}", response_model=list[Venta], status_code=status.HTTP_200_OK)
-async def marcar_ventas_entregadas_por_folio(
-    folio: str, 
-    token: str = Depends(validar_token),
-    x_connection_id: Optional[str] = Header(None)
-):
-    try:
-        # Buscar todas las ventas con ese folio
-        ventas_existentes = list(db_client.local.ventas.find({"folio": folio}))
+# @router.patch("/marcar-entregada/{folio}", response_model=list[Venta], status_code=status.HTTP_200_OK)
+# async def marcar_ventas_entregadas_por_folio(
+#     folio: str, 
+#     token: str = Depends(validar_token),
+#     x_connection_id: Optional[str] = Header(None)
+# ):
+#     try:
+#         # Buscar todas las ventas con ese folio
+#         ventas_existentes = list(db_client.local.ventas.find({"folio": folio}))
         
-        if not ventas_existentes:
-            raise HTTPException(status_code=404, detail=f"No se encontraron ventas con el folio {folio}")
+#         if not ventas_existentes:
+#             raise HTTPException(status_code=404, detail=f"No se encontraron ventas con el folio {folio}")
         
-        # Verificar si todas ya están entregadas
-        todas_entregadas = all(not venta.get("pedido_pendiente", True) for venta in ventas_existentes)
-        if todas_entregadas:
-            raise HTTPException(status_code=400, detail="Todas las ventas con este folio ya están marcadas como entregadas")
+#         # Verificar si todas ya están entregadas
+#         todas_entregadas = all(not venta.get("has_pedido", True) for venta in ventas_existentes)
+#         if todas_entregadas:
+#             raise HTTPException(status_code=400, detail="Todas las ventas con este folio ya están marcadas como entregadas")
         
-        # Actualizar todas las ventas con ese folio
-        result = db_client.local.ventas.update_many(
-            {"folio": folio},
-            {"$set": {"pedido_pendiente": False}}
-        )
+#         # Actualizar todas las ventas con ese folio
+#         result = db_client.local.ventas.update_many(
+#             {"folio": folio},
+#             {"$set": {"has_pedido": False}}
+#         )
         
-        # Obtener todas las ventas actualizadas
-        ventas_actualizadas = list(db_client.local.ventas.find({"folio": folio}))
+#         # Obtener todas las ventas actualizadas
+#         ventas_actualizadas = list(db_client.local.ventas.find({"folio": folio}))
         
-        # Notificar por WebSocket cada venta actualizada
-        for venta in ventas_actualizadas:
-            await manager.broadcast(
-                f"update-venta:{str(venta['_id'])}",
-                exclude_connection_id=x_connection_id
-            )
+#         # Notificar por WebSocket cada venta actualizada
+#         for venta in ventas_actualizadas:
+#             await manager.broadcast(
+#                 f"update-venta:{str(venta['_id'])}",
+#                 exclude_connection_id=x_connection_id
+#             )
         
-        return [Venta(**venta_schema(venta)) for venta in ventas_actualizadas]
+#         return [Venta(**venta_schema(venta)) for venta in ventas_actualizadas]
         
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error al marcar las ventas como entregadas: {str(e)}"
-        )
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"Error al marcar las ventas como entregadas: {str(e)}"
+#         )
 
 def search_venta(field: str, key):
     try:
