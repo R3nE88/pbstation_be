@@ -53,6 +53,19 @@ async def obtener_caja(id: str, token: str = Depends(validar_token)):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Formato de ID inválido")
 
+@router.get("/buscar/{folio}")
+async def obtener_caja_por_folio(folio: str, token: str = Depends(validar_token)):
+    try:
+        caja = db_client.local.cajas.find_one({"folio": folio, "estado": "cerrada"})
+        if not caja:
+            raise HTTPException(status_code=404, detail="Caja no encontrada o no está cerrada")
+        return Caja(**caja_schema(caja))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail=f'Error al buscar la caja: {str(e)}'
+        )
+
 @router.post("/", response_model=Caja, status_code=status.HTTP_201_CREATED) #post
 async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
     caja_dict = caja.model_dump()

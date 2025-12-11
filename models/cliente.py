@@ -17,3 +17,5 @@ class Cliente(BaseModel): #Entidad #modelo
     colonia: str | None = None
     localidad: str | None = None
     adeudos: list[Adeudo] | None = None
+    protegido: bool = False
+    activo: bool = True

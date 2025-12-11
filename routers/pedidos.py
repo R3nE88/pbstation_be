@@ -427,7 +427,34 @@ async def cancelar_pedido(
     
     return Pedido(**pedido_actualizado)
 
-
+@router.delete("/{pedido_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_pedido(
+    pedido_id: str,
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    # Verificar que el pedido existe
+    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    if not pedido:
+        raise HTTPException(status_code=404, detail="Pedido no encontrado")
+    
+    # Eliminar los archivos físicos del pedido si existen
+    pedido_dir = os.path.join(UPLOAD_DIR, pedido_id)
+    try:
+        if os.path.exists(pedido_dir):
+            shutil.rmtree(pedido_dir)
+            print(f"Archivos del pedido {pedido_id} eliminados exitosamente")
+    except Exception as e:
+        print(f"Advertencia: No se pudieron eliminar archivos del pedido {pedido_id}: {str(e)}")
+        # Continuamos con la eliminación del pedido en la BD aunque falle la eliminación de archivos
+    
+    # Eliminar el pedido de la base de datos
+    resultado = db_client.local.pedidos.delete_one({"_id": ObjectId(pedido_id)})
+    
+    if resultado.deleted_count == 0:
+        raise HTTPException(status_code=400, detail="No se pudo eliminar el pedido")
+    
+    return None  # 204 No Content no devuelve body
 
 
 # # prueba!!

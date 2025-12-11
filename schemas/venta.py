@@ -9,9 +9,9 @@ def venta_schema(venta) -> dict:
         "folio": venta["folio"],
         "cliente_id": venta["cliente_id"],
         "usuario_id": venta["usuario_id"],
+        "usuario_id_cancelo": venta["usuario_id_cancelo"],
         "sucursal_id": venta["sucursal_id"],
         "has_pedido": venta["has_pedido"],
-        "fecha_entrega": venta["fecha_entrega"],
         "detalles": detalles_venta_schema(venta["detalles"]),
         "fecha_venta": venta["fecha_venta"],
         "comentarios_venta": venta["comentarios_venta"],
@@ -34,10 +34,10 @@ def venta_schema(venta) -> dict:
         "abonado_total": decimal_to_float(venta["abonado_total"]),
         "cambio": decimal_to_float(venta["cambio"]),
         "liquidado": venta["liquidado"],
+        "factura_id": venta["factura_id"],
         "was_deuda": venta["was_deuda"],
         "cancelado": venta["cancelado"],
         "motivo_cancelacion": venta["motivo_cancelacion"],
-        "usuario_id_cancelo": venta["usuario_id_cancelo"]
     }
 
 def ventas_schema(ventas) -> list:
