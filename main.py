@@ -29,3 +29,4 @@ async def helloworld():
 #Inicia el server: uvicorn main:app --reload
 # Documentacion con Swagger: /docs
 # Iniciar venv: venv\Scripts\activate
+# hola desde nueva pc 
