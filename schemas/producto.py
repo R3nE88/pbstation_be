@@ -2,7 +2,7 @@ def producto_schema(producto) -> dict:
     return {
         "id":str(producto["_id"]),
         "codigo":producto["codigo"],
-        "descripcion":producto["descripcion"],
+        "descripcion":producto["descripcion"], 
         "unidad_sat":producto["unidad_sat"],
         "clave_sat":producto["clave_sat"],
         "precio": float(producto["precio"].to_decimal()), 

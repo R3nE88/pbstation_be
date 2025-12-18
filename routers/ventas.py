@@ -1,4 +1,3 @@
-
 from typing import Optional
 from bson import ObjectId
 from bson.errors import InvalidId
@@ -318,49 +317,77 @@ async def cancelar_venta(
             detail=f"Error al cancelar la venta: {str(e)}"
         )
 
-# @router.patch("/marcar-entregada/{folio}", response_model=list[Venta], status_code=status.HTTP_200_OK)
-# async def marcar_ventas_entregadas_por_folio(
-#     folio: str, 
-#     token: str = Depends(validar_token),
-#     x_connection_id: Optional[str] = Header(None)
-# ):
-#     try:
-#         # Buscar todas las ventas con ese folio
-#         ventas_existentes = list(db_client.local.ventas.find({"folio": folio}))
+@router.patch("/{venta_id}/factura", response_model=Venta, status_code=status.HTTP_200_OK)
+async def actualizar_factura_venta(
+    venta_id: str,
+    factura_id: str,
+    token: str = Depends(validar_token),
+    x_connection_id: Optional[str] = Header(None)
+):
+    try:
+        venta_oid = ObjectId(venta_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID de venta inválido")
+    
+    # Validar que el factura_id no esté vacío
+    if not factura_id or factura_id.strip() == "":
+        raise HTTPException(status_code=400, detail="El factura_id es requerido")
+    
+    try:
+        # Verificar que la venta existe
+        venta_existente = db_client.local.ventas.find_one({"_id": venta_oid})
+        if not venta_existente:
+            raise HTTPException(status_code=404, detail="Venta no encontrada")
         
-#         if not ventas_existentes:
-#             raise HTTPException(status_code=404, detail=f"No se encontraron ventas con el folio {folio}")
+        # Actualizar el factura_id
+        db_client.local.ventas.update_one(
+            {"_id": venta_oid},
+            {"$set": {"factura_id": factura_id.strip()}}
+        )
         
-#         # Verificar si todas ya están entregadas
-#         todas_entregadas = all(not venta.get("has_pedido", True) for venta in ventas_existentes)
-#         if todas_entregadas:
-#             raise HTTPException(status_code=400, detail="Todas las ventas con este folio ya están marcadas como entregadas")
+        # Obtener y retornar la venta actualizada
+        venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
         
-#         # Actualizar todas las ventas con ese folio
-#         result = db_client.local.ventas.update_many(
-#             {"folio": folio},
-#             {"$set": {"has_pedido": False}}
-#         )
+        # Notificar por WebSocket la actualización de la venta
+        await manager.broadcast(
+            f"update-venta:{str(venta_oid)}",
+            exclude_connection_id=x_connection_id
+        )
         
-#         # Obtener todas las ventas actualizadas
-#         ventas_actualizadas = list(db_client.local.ventas.find({"folio": folio}))
+        return Venta(**venta_schema(venta_actualizada))
         
-#         # Notificar por WebSocket cada venta actualizada
-#         for venta in ventas_actualizadas:
-#             await manager.broadcast(
-#                 f"update-venta:{str(venta['_id'])}",
-#                 exclude_connection_id=x_connection_id
-#             )
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al actualizar factura_id de la venta: {str(e)}"
+        )
+
+@router.get("/buscar/{folio}", response_model=Venta)
+async def buscar_venta_por_folio(folio: str, token: str = Depends(validar_token)):
+    try:
+        # Buscar solo ventas liquidadas con el folio especificado
+        venta = db_client.local.ventas.find_one({
+            "folio": folio.upper(),
+            "liquidado": True
+        })
         
-#         return [Venta(**venta_schema(venta)) for venta in ventas_actualizadas]
+        if not venta:
+            raise HTTPException(
+                status_code=404, 
+                detail="No se encontró ninguna venta liquidada con ese folio"
+            )
         
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         raise HTTPException(
-#             status_code=500,
-#             detail=f"Error al marcar las ventas como entregadas: {str(e)}"
-#         )
+        return Venta(**venta_schema(venta))
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al buscar la venta por folio: {str(e)}"
+        )
 
 def search_venta(field: str, key):
     try:
