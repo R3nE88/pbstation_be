@@ -16,6 +16,8 @@ def cliente_schema(cliente) -> dict:
         "colonia":cliente["colonia"],
         "localidad":cliente["localidad"],
         "adeudos": adeudos_schema(cliente["adeudos"]) if "adeudos" in cliente else [],
+        "protegido": cliente.get("protegido", False),
+        "activo": cliente.get("activo", True)
     }
 
 def clientes_schema(clientes) -> list:

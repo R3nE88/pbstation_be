@@ -30,3 +30,24 @@ async def helloworld():
 # Documentacion con Swagger: /docs
 # Iniciar venv: venv\Scripts\activate
 # hola desde nueva pc 
+
+
+### Ejemplo cliente (publico general)
+# {
+#   "nombre": "Publico General",
+#   "correo": null,
+#   "telefono": null,
+#   "razon_social": null,
+#   "rfc": "XAXX010101000 ",
+#   "regimen_fiscal": "616",
+#   "codigo_postal": null,
+#   "direccion": null,
+#   "no_ext": null,
+#   "no_int": null,
+#   "colonia": null,
+#   "localidad": null,
+#   "adeudos": [
+#   ],
+#   "protegido": true,
+#   "activo": true
+# }
