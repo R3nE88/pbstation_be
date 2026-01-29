@@ -1,7 +1,10 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
 import routers.facturas as facturas
 from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores, pedidos
 from scheduler import iniciar_scheduler
+
+load_dotenv()
 app = FastAPI()
 
 #Routers

@@ -11,4 +11,5 @@ class DetalleVenta(BaseModel): #Entidad #modelo
     descuento_aplicado: Decimal
     iva: Decimal
     subtotal: Decimal
+    total: Decimal
     cotizacion_precio : Decimal | None = None

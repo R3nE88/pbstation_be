@@ -1,20 +1,46 @@
 import base64
 from typing import Optional
 from bson import Decimal128
-from fastapi import APIRouter, HTTPException, status, Depends, Header
+from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
 import requests
+from os import getenv
 from core.database import db_client
 from models.factura import Factura
-from schemas.factura import factura_schema
+from schemas.factura import factura_schema, facturas_schema
 from validar_token import validar_token
 from routers.websocket import manager 
 
 router = APIRouter(prefix="/facturacion", tags=["Facturación"])
 
-FACTURAMA_USER = "printerboy"
-FACTURAMA_PASS = "DIOE860426"
-
+FACTURAMA_USER = getenv("FACTURAMA_USER")
+FACTURAMA_PASS = getenv("FACTURAMA_PASS")
 BASE_URL = "https://apisandbox.facturama.mx"
+
+@router.get("/all")
+async def obtener_facturas(
+    page: int = 1,
+    page_size: int = 60,
+    token: str = Depends(validar_token)
+):
+    filtros = {}
+    total = db_client.local.facturas.count_documents(filtros)
+    skip = (page - 1) * page_size
+    facturas = db_client.local.facturas.find(filtros)\
+        .sort("fecha_creacion", -1)\
+        .skip(skip)\
+        .limit(page_size)
+    total_pages = (total + page_size - 1) // page_size
+    return {
+        "data": facturas_schema(facturas),
+        "pagination": {
+            "page": page,
+            "page_size": page_size,
+            "total": total,
+            "total_pages": total_pages,
+            "has_next": page < total_pages,
+            "has_prev": page > 1
+        }
+    }
 
 @router.post("/", response_model=Factura, status_code=status.HTTP_201_CREATED) #post
 async def crear_factura(factura: Factura, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):

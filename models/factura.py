@@ -13,3 +13,4 @@ class Factura(BaseModel):
     subtotal: Decimal
     impuestos: Decimal
     total: Decimal
+    is_global: bool = False

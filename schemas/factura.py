@@ -10,6 +10,7 @@ def factura_schema(factura) -> dict:
         "subtotal": float(factura["subtotal"].to_decimal()), 
         "impuestos": float(factura["impuestos"].to_decimal()), 
         "total": float(factura["total"].to_decimal()), 
+        "is_global": factura.get("is_global", False)
     }
 
 def facturas_schema(facturas) -> list:
