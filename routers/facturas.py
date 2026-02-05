@@ -20,9 +20,20 @@ BASE_URL = "https://apisandbox.facturama.mx"
 async def obtener_facturas(
     page: int = 1,
     page_size: int = 60,
+    rfc: Optional[str] = None,
+    sucursal_id: Optional[str] = None,
     token: str = Depends(validar_token)
 ):
     filtros = {}
+    
+    # Filtrar por RFC (búsqueda parcial, case-insensitive)
+    if rfc:
+        filtros["receptor_rfc"] = {"$regex": rfc, "$options": "i"}
+    
+    # Filtrar por sucursal
+    if sucursal_id:
+        filtros["sucursal_id"] = sucursal_id
+    
     total = db_client.local.facturas.count_documents(filtros)
     skip = (page - 1) * page_size
     facturas = db_client.local.facturas.find(filtros)\
@@ -80,19 +91,33 @@ def descargar_pdf(id: str):
     url = f"{BASE_URL}/api/cfdi/pdf/{id}"
     r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
 
-    data = r.json()
-    pdf_base64 = data["Content"]
-    pdf_bytes = base64.b64decode(pdf_base64)
-
-    return Response(content=pdf_bytes, media_type="application/pdf")
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code, detail=f"Error de Facturama: {r.text}")
+    
+    try:
+        data = r.json()
+        if "Content" not in data:
+            raise HTTPException(status_code=500, detail=f"Respuesta inesperada de Facturama: {data}")
+        pdf_base64 = data["Content"]
+        pdf_bytes = base64.b64decode(pdf_base64)
+        return Response(content=pdf_bytes, media_type="application/pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando PDF: {str(e)}")
 
 @router.get("/xml/{id}")
 def descargar_xml(id: str):
     url = f"{BASE_URL}/api/cfdi/xml/{id}"
     r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
 
-    data = r.json()
-    xml_base64 = data["Content"]
-    xml_bytes = base64.b64decode(xml_base64)
-
-    return Response(content=xml_bytes, media_type="application/xml")
+    if r.status_code != 200:
+        raise HTTPException(status_code=r.status_code, detail=f"Error de Facturama: {r.text}")
+    
+    try:
+        data = r.json()
+        if "Content" not in data:
+            raise HTTPException(status_code=500, detail=f"Respuesta inesperada de Facturama: {data}")
+        xml_base64 = data["Content"]
+        xml_bytes = base64.b64decode(xml_base64)
+        return Response(content=xml_bytes, media_type="application/xml")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error procesando XML: {str(e)}")

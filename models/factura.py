@@ -5,7 +5,7 @@ from decimal import Decimal
 class Factura(BaseModel):
     id: str | None = None  # ID de base de datos
     factura_id: str # ID facturama
-    venta_id: str
+    folio_venta: str
     uuid: str #id sat
     fecha: datetime
     receptor_rfc: str

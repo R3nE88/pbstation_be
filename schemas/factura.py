@@ -2,7 +2,7 @@ def factura_schema(factura) -> dict:
     return {
         "id":str(factura["_id"]),
         "factura_id":factura["factura_id"],
-        "venta_id":factura["venta_id"],
+        "folio_venta":factura["folio_venta"],
         "uuid":factura["uuid"],
         "fecha":factura["fecha"],
         "receptor_rfc":factura["receptor_rfc"],
