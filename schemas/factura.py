@@ -8,6 +8,7 @@ def factura_schema(factura) -> dict:
         "receptor_rfc":factura["receptor_rfc"],
         "receptor_nombre":factura["receptor_nombre"],
         "subtotal": float(factura["subtotal"].to_decimal()), 
+        "descuento": float(factura["descuento"].to_decimal()),
         "impuestos": float(factura["impuestos"].to_decimal()), 
         "total": float(factura["total"].to_decimal()), 
         "is_global": factura.get("is_global", False)

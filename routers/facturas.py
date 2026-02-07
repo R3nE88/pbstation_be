@@ -60,6 +60,7 @@ async def crear_factura(factura: Factura, token: str = Depends(validar_token), x
     factura_dict = dict(factura)
     del factura_dict["id"] #quitar el id para que no se guarde como null
     factura_dict["subtotal"] = Decimal128(factura_dict["subtotal"])
+    factura_dict["descuento"] = Decimal128(factura_dict["descuento"])
     factura_dict["impuestos"] = Decimal128(factura_dict["impuestos"])
     factura_dict["total"] = Decimal128(factura_dict["total"])
 

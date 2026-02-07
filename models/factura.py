@@ -11,6 +11,7 @@ class Factura(BaseModel):
     receptor_rfc: str
     receptor_nombre: str
     subtotal: Decimal
+    descuento: Decimal
     impuestos: Decimal
     total: Decimal
     is_global: bool = False
