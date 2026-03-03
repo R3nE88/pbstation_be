@@ -15,7 +15,7 @@ router = APIRouter(prefix="/cotizaciones", tags=["cotizaciones"])
 
 @router.get("/all", response_model=list[Cotizacion])
 async def obtener_cotizaciones(token: str = Depends(validar_token)):
-    cotizaciones = db_client.local.cotizaciones.find().sort("fecha_cotizacion", DESCENDING)
+    cotizaciones = db_client.pbstation.cotizaciones.find().sort("fecha_cotizacion", DESCENDING)
     return cotizaciones_schema(cotizaciones)
 
 @router.get("/{id}")
@@ -31,7 +31,7 @@ async def obtener_cotizacion(id: str, token: str = Depends(validar_token)):
 @router.post("/", response_model=Cotizacion, status_code=status.HTTP_201_CREATED) #post
 async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     cotizacion_dict = cotizacion.model_dump()
-    cotizacion_dict["folio"] = generar_folio_cotizacion(db_client.local)  #generacion de folio
+    cotizacion_dict["folio"] = generar_folio_cotizacion(db_client.pbstation)  #generacion de folio
     cotizacion_dict["detalles"] = [d.model_dump() for d in cotizacion.detalles]
     del cotizacion_dict["id"] #quitar el id para que no se guarde como null
     cotizacion_dict["subtotal"] = Decimal128(cotizacion_dict["subtotal"])
@@ -45,8 +45,8 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
         detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"])
         detalle.pop("id", None)  # ✅ eliminar el duplicado
-    id = db_client.local.cotizaciones.insert_one(cotizacion_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_cotizacion = cotizacion_schema(db_client.local.cotizaciones.find_one({"_id":id}))
+    id = db_client.pbstation.cotizaciones.insert_one(cotizacion_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nueva_cotizacion = cotizacion_schema(db_client.pbstation.cotizaciones.find_one({"_id":id}))
     await manager.broadcast(
         f"post-cotizacion:{str(id)}",
         exclude_connection_id=x_connection_id
@@ -55,7 +55,7 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
 
 def search_cotizaciones(field: str, key):
     try:
-        cotizacion = db_client.local.cotizaciones.find_one({field: key})
+        cotizacion = db_client.pbstation.cotizaciones.find_one({field: key})
         if not cotizacion:  # Verificar si no se encontró la cotizacion
             return None
         return Cotizacion(**cotizacion_schema(cotizacion))  # el ** sirve para pasar los valores del diccionario

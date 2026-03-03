@@ -11,7 +11,7 @@ router = APIRouter(prefix="/contadores", tags=["Contadores"])
 
 @router.get("/{impresora_id}", response_model=Optional[Contador])
 async def obtener_contador(impresora_id: str, token: str = Depends(validar_token)):
-    ultimo = db_client.local.contadores.find_one({"impresora_id": impresora_id})
+    ultimo = db_client.pbstation.contadores.find_one({"impresora_id": impresora_id})
     if not ultimo:
         raise HTTPException(status_code=404, detail="No se encontraron contadores para esta impresora")
     return contador_schema(ultimo)
@@ -20,8 +20,8 @@ async def obtener_contador(impresora_id: str, token: str = Depends(validar_token
 async def crear_contador(sucursal_id: str, contador: Contador, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     contador_dict = dict(contador)
     del contador_dict["id"]
-    id = db_client.local.contadores.insert_one(contador_dict).inserted_id
-    nuevo_contador = contador_schema(db_client.local.contadores.find_one({"_id":id}))
+    id = db_client.pbstation.contadores.insert_one(contador_dict).inserted_id
+    nuevo_contador = contador_schema(db_client.pbstation.contadores.find_one({"_id":id}))
     impresora_id = contador_dict.get("impresora_id")
     await manager.broadcast_to_sucursal(
         f"post-contadores:{impresora_id}",
@@ -32,7 +32,7 @@ async def crear_contador(sucursal_id: str, contador: Contador, token: str = Depe
 
 @router.delete("/{impresora_id}/{sucursal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def eliminar_contadores_por_impresora(impresora_id: str, sucursal_id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    result = db_client.local.contadores.delete_many({"impresora_id": impresora_id})
+    result = db_client.pbstation.contadores.delete_many({"impresora_id": impresora_id})
     if result.deleted_count == 0:
         raise HTTPException(
             status_code=404,
@@ -53,7 +53,7 @@ async def sumar_contador(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
-    contador_actualizado = db_client.local.contadores.find_one_and_update(
+    contador_actualizado = db_client.pbstation.contadores.find_one_and_update(
         {"impresora_id": impresora_id},
         {"$inc": {"cantidad": cantidad}},
         return_document=True
@@ -73,7 +73,7 @@ async def sumar_contador(
 
 @router.put("/{impresora_id}/{sucursal_id}/{cantidad}")
 async def actualizar_contador(impresora_id: str, sucursal_id: str, cantidad: int, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    contador_actualizado = db_client.local.contadores.find_one_and_update(
+    contador_actualizado = db_client.pbstation.contadores.find_one_and_update(
         {"impresora_id": impresora_id},
         {"$set": {"cantidad": cantidad}},
         return_document=True  # Retorna el documento DESPUÉS de actualizarlo
@@ -92,7 +92,7 @@ async def actualizar_contador(impresora_id: str, sucursal_id: str, cantidad: int
 
 def search_contador(field: str, key):
     try:
-        contador = db_client.local.contadores.find_one({field: key})
+        contador = db_client.pbstation.contadores.find_one({field: key})
         if not contador:
             return None
         return Contador(**contador_schema(contador)) 

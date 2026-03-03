@@ -19,7 +19,7 @@ router = APIRouter(prefix="/ventas", tags=["ventas"])
 async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_token), orden: str = "asc"):
     try:
         try:
-            caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+            caja = db_client.pbstation.cajas.find_one({"_id": ObjectId(caja_id)})
         except Exception:
             raise HTTPException(status_code=400, detail="caja_id inválido")
         if not caja:
@@ -33,7 +33,7 @@ async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_toke
             return x if isinstance(x, ObjectId) else ObjectId(str(x))
 
         cortes_oids = [to_oid(c) for c in cortes_ids]
-        cortes_cursor = db_client.local.cortes.find(
+        cortes_cursor = db_client.pbstation.cortes.find(
             {"_id": {"$in": cortes_oids}},
             {"ventas_ids": 1}
         )
@@ -48,7 +48,7 @@ async def obtener_ventas_de_caja(caja_id: str, token: str = Depends(validar_toke
             return []
 
         ventas_oids = list({to_oid(v) for v in ventas_ids_flat})
-        ventas_cursor = db_client.local.ventas.find({"_id": {"$in": ventas_oids}})
+        ventas_cursor = db_client.pbstation.ventas.find({"_id": {"$in": ventas_oids}})
         ventas = list(ventas_cursor)
         reverse = (orden.lower() != "asc") 
         ventas_sorted = sorted(ventas, key=lambda v: v.get("fecha_venta") or v["_id"].generation_time, reverse=reverse)
@@ -71,7 +71,7 @@ async def obtener_ventas_de_corte(corte_id: str, token: str = Depends(validar_to
         except Exception:
             raise HTTPException(status_code=400, detail="corte_id inválido")
 
-        corte = db_client.local.cortes.find_one({"_id": corte_oid}, {"ventas_ids": 1})
+        corte = db_client.pbstation.cortes.find_one({"_id": corte_oid}, {"ventas_ids": 1})
         if not corte:
             raise HTTPException(status_code=404, detail="Corte no encontrado")
 
@@ -83,7 +83,7 @@ async def obtener_ventas_de_corte(corte_id: str, token: str = Depends(validar_to
             return x if isinstance(x, ObjectId) else ObjectId(str(x))
 
         ventas_oids = [to_oid(v) for v in ventas_ids_raw]
-        ventas_cursor = db_client.local.ventas.find({"_id": {"$in": ventas_oids}})
+        ventas_cursor = db_client.pbstation.ventas.find({"_id": {"$in": ventas_oids}})
         ventas_map = {str(v["_id"]): v for v in ventas_cursor}
         ventas_ordenadas = []
         for v_raw in ventas_ids_raw:
@@ -131,7 +131,7 @@ async def obtener_ventas_por_ids(
     if sucursal_id:
         query_filter["sucursal_id"] = sucursal_id
     try:
-        ventas_list = list(db_client.local.ventas.find(query_filter))
+        ventas_list = list(db_client.pbstation.ventas.find(query_filter))
         if not ventas_list:
             return []
         def get_fecha_venta(venta):
@@ -166,7 +166,7 @@ async def obtener_ventas_sin_factura_del_mes(
                 return Decimal(str(value.to_decimal()))
             return Decimal(str(value)) if value else Decimal("0")
         
-        ventas = list(db_client.local.ventas.find({
+        ventas = list(db_client.pbstation.ventas.find({
             "factura_id": None,
             "liquidado": True,
             "cancelado": {"$ne": True},
@@ -241,7 +241,7 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
     venta_dict = venta.model_dump()
     #generacion de folio
     if not venta_dict.get("folio"):
-        venta_dict["folio"] = generar_folio_venta(db_client.local, venta.sucursal_id)
+        venta_dict["folio"] = generar_folio_venta(db_client.pbstation, venta.sucursal_id)
     venta_dict["detalles"] = [d.model_dump() for d in venta.detalles]
     del venta_dict["id"] #quitar el id para que no se guarde como null
     venta_dict["subtotal"] = Decimal128(venta_dict["subtotal"])
@@ -264,9 +264,9 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
         detalle["total"] = Decimal128(detalle["total"])
-    id = db_client.local.ventas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_venta = venta_schema(db_client.local.ventas.find_one({"_id":id}))
-    db_client.local.cortes.update_one(
+    id = db_client.pbstation.ventas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nueva_venta = venta_schema(db_client.pbstation.ventas.find_one({"_id":id}))
+    db_client.pbstation.cortes.update_one(
         {"_id": ObjectId(corte_id)},
         {"$push": {"ventas_ids": id}}
     )
@@ -285,12 +285,12 @@ async def marcar_deuda_pagada(venta_id: str, token: str = Depends(validar_token)
         raise HTTPException(status_code=400, detail="ID de venta inválido")
     try:
         # Actualizar la venta
-        db_client.local.ventas.update_one(
+        db_client.pbstation.ventas.update_one(
             {"_id": venta_oid},
             {"$set": {"liquidado": True}}
         )
         # Obtener y retornar la venta actualizada
-        venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
+        venta_actualizada = db_client.pbstation.ventas.find_one({"_id": venta_oid})
         
         if not venta_actualizada:
             raise HTTPException(status_code=404, detail="Venta no encontrada")
@@ -328,7 +328,7 @@ async def cancelar_venta(
     
     try:
         # Verificar que la venta existe
-        venta_existente = db_client.local.ventas.find_one({"_id": venta_oid})
+        venta_existente = db_client.pbstation.ventas.find_one({"_id": venta_oid})
         if not venta_existente:
             raise HTTPException(status_code=404, detail="Venta no encontrada")
         
@@ -368,10 +368,10 @@ async def cancelar_venta(
                     cliente_oid = ObjectId(cliente_id) if not isinstance(cliente_id, ObjectId) else cliente_id
                     
                     # Verificar que el cliente existe
-                    cliente_existente = db_client.local.clientes.find_one({"_id": cliente_oid})
+                    cliente_existente = db_client.pbstation.clientes.find_one({"_id": cliente_oid})
                     if cliente_existente:
                         # Eliminar el adeudo del cliente usando $pull
-                        result = db_client.local.clientes.update_one(
+                        result = db_client.pbstation.clientes.update_one(
                             {"_id": cliente_oid},
                             {"$pull": {"adeudos": {"venta_id": str(venta_oid)}}}
                         )
@@ -387,13 +387,13 @@ async def cancelar_venta(
                     print(f"Advertencia: No se pudo eliminar el adeudo del cliente: {str(e)}")
         
         # Actualizar la venta
-        db_client.local.ventas.update_one(
+        db_client.pbstation.ventas.update_one(
             {"_id": venta_oid},
             {"$set": update_fields}
         )
         
         # Obtener y retornar la venta actualizada
-        venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
+        venta_actualizada = db_client.pbstation.ventas.find_one({"_id": venta_oid})
         
         # Notificar por WebSocket la actualización de la venta
         await manager.broadcast(
@@ -429,18 +429,18 @@ async def cancelar_venta(
     
 #     try:
 #         # Verificar que la venta existe
-#         venta_existente = db_client.local.ventas.find_one({"_id": venta_oid})
+#         venta_existente = db_client.pbstation.ventas.find_one({"_id": venta_oid})
 #         if not venta_existente:
 #             raise HTTPException(status_code=404, detail="Venta no encontrada")
         
 #         # Actualizar el factura_id
-#         db_client.local.ventas.update_one(
+#         db_client.pbstation.ventas.update_one(
 #             {"_id": venta_oid},
 #             {"$set": {"factura_id": factura_id.strip()}}
 #         )
         
 #         # Obtener y retornar la venta actualizada
-#         venta_actualizada = db_client.local.ventas.find_one({"_id": venta_oid})
+#         venta_actualizada = db_client.pbstation.ventas.find_one({"_id": venta_oid})
         
 #         # Notificar por WebSocket la actualización de la venta
 #         await manager.broadcast(
@@ -479,7 +479,7 @@ async def actualizar_factura_ventas_bulk(
     try:
         # Actualizar todas las ventas que coincidan con los folios (MUY EFICIENTE)
         # Esto actualizará TODAS las ventas que tengan esos folios, incluso si hay duplicados
-        result = db_client.local.ventas.update_many(
+        result = db_client.pbstation.ventas.update_many(
             {"folio": {"$in": request.folios}},
             {"$set": {"factura_id": request.factura_id.strip()}}
         )
@@ -489,7 +489,7 @@ async def actualizar_factura_ventas_bulk(
             raise HTTPException(status_code=404, detail="No se encontraron ventas con los folios proporcionados")
         
         # Obtener los IDs de las ventas actualizadas para notificar por WebSocket
-        ventas_actualizadas = db_client.local.ventas.find(
+        ventas_actualizadas = db_client.pbstation.ventas.find(
             {"folio": {"$in": request.folios}},
             {"_id": 1}
         )
@@ -521,7 +521,7 @@ async def actualizar_factura_ventas_bulk(
 async def buscar_venta_por_folio(folio: str, token: str = Depends(validar_token)):
     try:
         # Buscar solo ventas liquidadas con el folio especificado
-        venta = db_client.local.ventas.find_one({
+        venta = db_client.pbstation.ventas.find_one({
             "folio": folio.upper(),
             "liquidado": True
         })
@@ -544,7 +544,7 @@ async def buscar_venta_por_folio(folio: str, token: str = Depends(validar_token)
 
 def search_venta(field: str, key):
     try:
-        venta = db_client.local.ventas.find_one({field: key})
+        venta = db_client.pbstation.ventas.find_one({field: key})
         if not venta:  # Verificar si no se encontró la venta
             return None
         return Venta(**venta_schema(venta))  # el ** sirve para pasar los valores del diccionario
@@ -564,7 +564,7 @@ async def obtener_ventas_liquidadas_sin_factura_por_dia(
         fecha_fin = fecha_inicio + timedelta(days=1)
         
         # Buscar ventas que cumplan con los criterios
-        ventas_cursor = db_client.local.ventas.find({
+        ventas_cursor = db_client.pbstation.ventas.find({
             "fecha_venta": {
                 "$gte": fecha_inicio,
                 "$lt": fecha_fin

@@ -4,7 +4,7 @@ from datetime import datetime
 from pytz import timezone
 
 # Conexión a tu base de datos MongoDB
-db = db_client.local
+db = db_client.pbstation
 
 def verificar_cotizaciones_vencidas():
     print("Verificando cotizaciones vencidas...")

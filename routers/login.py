@@ -36,7 +36,7 @@ async def login(credentials: dict, token: str = Depends(validar_token)):
         else:
             # Es un correo
             query = {"correo": identificador}
-        usuario = db_client.local.usuarios.find_one(query)
+        usuario = db_client.pbstation.usuarios.find_one(query)
         if not usuario:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,

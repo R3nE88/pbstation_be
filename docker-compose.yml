@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  pbstation:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - uploads_data:/app/uploads
+      - config_data:/app/configuracion.json
+    restart: unless-stopped
+
+volumes:
+  uploads_data:
+    driver: local
+  config_data:
+    driver: local

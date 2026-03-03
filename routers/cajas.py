@@ -24,9 +24,9 @@ async def obtener_cajas(
     filtros = {"estado": "cerrada"}  
     if sucursal_id:
         filtros["sucursal_id"] = sucursal_id
-    total = db_client.local.cajas.count_documents(filtros)
+    total = db_client.pbstation.cajas.count_documents(filtros)
     skip = (page - 1) * page_size
-    cajas = db_client.local.cajas.find(filtros)\
+    cajas = db_client.pbstation.cajas.find(filtros)\
         .sort("fecha_apertura", -1)\
         .skip(skip)\
         .limit(page_size)
@@ -56,7 +56,7 @@ async def obtener_caja(id: str, token: str = Depends(validar_token)):
 @router.get("/buscar/{folio}")
 async def obtener_caja_por_folio(folio: str, token: str = Depends(validar_token)):
     try:
-        caja = db_client.local.cajas.find_one({"folio": folio, "estado": "cerrada"})
+        caja = db_client.pbstation.cajas.find_one({"folio": folio, "estado": "cerrada"})
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada o no está cerrada")
         return Caja(**caja_schema(caja))
@@ -71,14 +71,14 @@ async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
     caja_dict = caja.model_dump()
 
     #generacion de folio
-    caja_dict["folio"] = generar_folio_caja(db_client.local)
+    caja_dict["folio"] = generar_folio_caja(db_client.pbstation)
 
     del caja_dict["id"] #quitar el id para que no se guarde como null
     caja_dict["venta_total"] = Decimal128(str(caja_dict["venta_total"])) if caja_dict["venta_total"] is not None else None
     caja_dict["cortes_ids"] = []
 
-    id = db_client.local.cajas.insert_one(caja_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_caja = caja_schema(db_client.local.cajas.find_one({"_id":id}))
+    id = db_client.pbstation.cajas.insert_one(caja_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nueva_caja = caja_schema(db_client.pbstation.cajas.find_one({"_id":id}))
     
     return Caja(**nueva_caja)
 
@@ -100,7 +100,7 @@ async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
         except InvalidId:
             raise HTTPException(status_code=400, detail="Uno o más cortes_ids tienen formato inválido")
     try:
-        result = db_client.local.cajas.find_one_and_replace(
+        result = db_client.pbstation.cajas.find_one_and_replace(
             {"_id": ObjectId(caja.id)}, 
             caja_dict
         )
@@ -112,7 +112,7 @@ async def actualizar_caja(caja: Caja, token: str = Depends(validar_token)):
 
 def search_caja(field: str, key):
     try:
-        caja = db_client.local.cajas.find_one({field: key})
+        caja = db_client.pbstation.cajas.find_one({field: key})
         if not caja:  
             return None
         return Caja(**caja_schema(caja))
@@ -125,7 +125,7 @@ def search_caja(field: str, key):
 @router.get("/{caja_id}/cortes/all", response_model=list[Corte])
 async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
     try:
-        caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+        caja = db_client.pbstation.cajas.find_one({"_id": ObjectId(caja_id)})
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada")
         
@@ -136,7 +136,7 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
         # Asegurar que sean ObjectId
         cortes_ids_obj = [ObjectId(id) if isinstance(id, str) else id for id in cortes_ids]
         
-        cortes_cursor = db_client.local.cortes.find(
+        cortes_cursor = db_client.pbstation.cortes.find(
             {"_id": {"$in": cortes_ids_obj}}
         ).sort("fecha_apertura", -1)
         
@@ -154,13 +154,13 @@ async def obtener_all_cortes(caja_id: str, token: str = Depends(validar_token)):
 @router.get("/{caja_id}/cortes/ultimo", response_model=Corte)
 async def obtener_ultimo_corte(caja_id: str, token: str = Depends(validar_token)):
     try:
-        caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+        caja = db_client.pbstation.cajas.find_one({"_id": ObjectId(caja_id)})
         if not caja:
             raise HTTPException(status_code=404, detail="Caja no encontrada")
         cortes_ids = caja.get("cortes_ids", [])
         if not cortes_ids:
             raise HTTPException(status_code=404, detail="La caja no tiene cortes registrados")
-        ultimo_corte = db_client.local.cortes.find_one(
+        ultimo_corte = db_client.pbstation.cortes.find_one(
             {"_id": {"$in": cortes_ids}},
             sort=[("fecha_apertura", -1)]
         )
@@ -175,12 +175,12 @@ async def obtener_ultimo_corte(caja_id: str, token: str = Depends(validar_token)
 
 @router.post("/{caja_id}/cortes", response_model=Corte, status_code=status.HTTP_201_CREATED) #post
 async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_token)):
-    caja = db_client.local.cajas.find_one({"_id": ObjectId(caja_id)})
+    caja = db_client.pbstation.cajas.find_one({"_id": ObjectId(caja_id)})
     if not caja:
         raise HTTPException(status_code=404, detail="Caja no encontrada")
     
     corte_dict = corte.model_dump()
-    corte_dict["folio"] = generar_folio_corte(db_client.local, corte.sucursal_id)
+    corte_dict["folio"] = generar_folio_corte(db_client.pbstation, corte.sucursal_id)
     
     del corte_dict["id"] #quitar el id para que no se guarde como null
     corte_dict["fondo_inicial"] = Decimal128(str(corte_dict["fondo_inicial"]))
@@ -203,11 +203,11 @@ async def crear_corte(caja_id: str, corte: Corte, token: str = Depends(validar_t
     #     movimiento["_id"] = ObjectId()  # Asignar un nuevo ObjectId para cada movimiento
     #     movimiento.pop("id", None)  # Eliminar el campo id si existe, ya que MongoDB genera su propio _id
 #
-    id = db_client.local.cortes.insert_one(corte_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nuevo_corte = corte_schema(db_client.local.cortes.find_one({"_id":id}))
+    id = db_client.pbstation.cortes.insert_one(corte_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nuevo_corte = corte_schema(db_client.pbstation.cortes.find_one({"_id":id}))
 
     # Actualizar la caja agregando el id del nuevo corte a cortes_ids
-    db_client.local.cajas.update_one(
+    db_client.pbstation.cajas.update_one(
         {"_id": ObjectId(caja_id)},
         {"$push": {"cortes_ids": id}}
     )
@@ -246,7 +246,7 @@ async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
             corte_dict[campo] = None
     
     try:
-        result = db_client.local.cortes.find_one_and_replace(
+        result = db_client.pbstation.cortes.find_one_and_replace(
             {"_id": ObjectId(corte.id)},
             corte_dict
         )
@@ -263,7 +263,7 @@ async def actualizar_corte(corte: Corte, token: str = Depends(validar_token)):
 @router.get("/{corte_id}/movimientos")
 async def obtener_movimientos(corte_id: str, token: str = Depends(validar_token)):
     # Obtener el corte directamente como diccionario desde MongoDB
-    corte_dict = db_client.local.cortes.find_one({"_id": ObjectId(corte_id)})
+    corte_dict = db_client.pbstation.cortes.find_one({"_id": ObjectId(corte_id)})
     if not corte_dict:
         raise HTTPException(status_code=404, detail="Corte no encontrada")
     # Retornar los movimientos usando tu schema para convertir _id a string
@@ -281,7 +281,7 @@ async def agregar_movimiento(corte_id: str, movimiento: dict = Body(...), token:
         "fecha": movimiento["fecha"]
     }
     # Insertar en el corte
-    result = db_client.local.cortes.update_one(
+    result = db_client.pbstation.cortes.update_one(
         {"_id": ObjectId(corte_id)},
         {"$push": {"movimiento_caja": movimiento_dict}}
     )
@@ -296,13 +296,13 @@ async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(vali
     try:
         # Buscar el corte que contiene la venta
         # Primero intentar buscando con la venta_id como string (cuando ventas_ids contiene strings)
-        corte = db_client.local.cortes.find_one({"ventas_ids": venta_id})
+        corte = db_client.pbstation.cortes.find_one({"ventas_ids": venta_id})
 
         # Si no se encuentra, intentar con ObjectId(venta_id) (cuando ventas_ids contiene ObjectId)
         if not corte:
             try:
                 venta_obj = ObjectId(venta_id)
-                corte = db_client.local.cortes.find_one({"ventas_ids": venta_obj})
+                corte = db_client.pbstation.cortes.find_one({"ventas_ids": venta_obj})
             except InvalidId:
                 corte = None
 
@@ -315,12 +315,12 @@ async def obtener_tipo_cambio_por_venta(venta_id: str, token: str = Depends(vali
         # Ahora buscar la caja que contiene el corte
         # Primero intentar con el ObjectId (cuando cortes_ids contiene ObjectId)
         corte_obj_id = corte["_id"]
-        caja = db_client.local.cajas.find_one({"cortes_ids": corte_obj_id})
+        caja = db_client.pbstation.cajas.find_one({"cortes_ids": corte_obj_id})
 
         # Si no se encuentra, intentar con el _id convertido a string (cuando cortes_ids contiene strings)
         if not caja:
             corte_id_str = str(corte_obj_id)
-            caja = db_client.local.cajas.find_one({"cortes_ids": corte_id_str})
+            caja = db_client.pbstation.cajas.find_one({"cortes_ids": corte_id_str})
 
         if not caja:
             raise HTTPException(

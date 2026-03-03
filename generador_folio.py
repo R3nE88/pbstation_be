@@ -132,10 +132,10 @@ def generar_folio_pedido(db, sucursal_id: str) -> str:
 # print('Ejemplo de venta')
 # sucursal_id = '68e3ecbced1d26f44deda640'
 # for _ in range(1):
-#     print(generar_folio_pedido(db_client.local, sucursal_id))
-#    print(generar_folio_cotizacion(db_client.local))
-#    print(generar_folio_caja(db_client.local))
-#    print(generar_folio_corte(db_client.local, sucursal_id))#
+#     print(generar_folio_pedido(db_client.pbstation, sucursal_id))
+#    print(generar_folio_cotizacion(db_client.pbstation))
+#    print(generar_folio_caja(db_client.pbstation))
+#    print(generar_folio_corte(db_client.pbstation, sucursal_id))#
 # #
 # 7: 68d1ceb9b0954102e87eaf9b
 # 38: 68d1cedcb0954102e87eaf9c

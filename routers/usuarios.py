@@ -22,7 +22,7 @@ router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
 @router.get("/all", response_model=list[Usuario])
 async def obtener_usuarios(token: str = Depends(validar_token)):
-    return usuarios_schema(db_client.local.usuarios.find({"activo": True}))
+    return usuarios_schema(db_client.pbstation.usuarios.find({"activo": True}))
 
 @router.get("/{id}")
 async def obtener_usuario(id: str, token: str = Depends(validar_token)):
@@ -48,8 +48,8 @@ async def crear_usuario(usuario: Usuario, token: str = Depends(validar_token), x
     usuario_dict = dict(usuario)
     usuario_dict["psw"] = pwd_context.hash(usuario.psw)  # Encriptar la contraseña
     del usuario_dict["id"] #quitar el id para que no se guarde como null
-    id = db_client.local.usuarios.insert_one(usuario_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nuevo_usuario = usuario_schema(db_client.local.usuarios.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
+    id = db_client.pbstation.usuarios.insert_one(usuario_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nuevo_usuario = usuario_schema(db_client.pbstation.usuarios.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
     await manager.broadcast(
         f"post-usuario:{str(id)}",
         exclude_connection_id=x_connection_id
@@ -69,7 +69,7 @@ async def actualizar_usuario(usuario: Usuario, token: str = Depends(validar_toke
     if "psw" in usuario_dict:
         del usuario_dict["psw"]
     try:
-        result = db_client.local.usuarios.update_one(
+        result = db_client.pbstation.usuarios.update_one(
             {"_id": ObjectId(usuario.id)}, 
             {"$set": usuario_dict}
         )
@@ -91,7 +91,7 @@ async def actualizar_usuario(usuario: Usuario, token: str = Depends(validar_toke
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
 async def delete_usuario(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    found = db_client.local.usuarios.find_one_and_update(
+    found = db_client.pbstation.usuarios.find_one_and_update(
         {"_id": ObjectId(id)},
         {"$set": {"activo": False}},
         return_document=ReturnDocument.AFTER
@@ -109,7 +109,7 @@ async def delete_usuario(id: str, token: str = Depends(validar_token), x_connect
 async def cambiar_password_seguro(datos: CambiarPassword, token: str = Depends(validar_token)):
     try:
         # Buscar el usuario actual
-        usuario_actual = db_client.local.usuarios.find_one({"_id": ObjectId(datos.id)})
+        usuario_actual = db_client.pbstation.usuarios.find_one({"_id": ObjectId(datos.id)})
         if not usuario_actual:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -118,7 +118,7 @@ async def cambiar_password_seguro(datos: CambiarPassword, token: str = Depends(v
         # Encriptar la nueva contraseña
         nueva_psw_encriptada = pwd_context.hash(datos.nueva_psw)
         # Actualizar la contraseña
-        db_client.local.usuarios.update_one(
+        db_client.pbstation.usuarios.update_one(
             {"_id": ObjectId(datos.id)},
             {"$set": {"psw": nueva_psw_encriptada}}
         )
@@ -133,7 +133,7 @@ async def cambiar_password_seguro(datos: CambiarPassword, token: str = Depends(v
 
 def search_usuario(field: str, key):
     try:
-        usuario = db_client.local.usuarios.find_one({field: key})
+        usuario = db_client.pbstation.usuarios.find_one({field: key})
         if not usuario:  # Verificar si no se encontró el usuario
             return None
         return Usuario(**usuario_schema(usuario))  # el ** sirve para pasar los valores del diccionario

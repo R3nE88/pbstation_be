@@ -13,7 +13,7 @@ router = APIRouter(prefix="/clientes", tags=["clientes"])
 
 @router.get("/all", response_model=list[Cliente])
 async def obtener_clientes(token: str = Depends(validar_token)):
-    return clientes_schema(db_client.local.clientes.find())
+    return clientes_schema(db_client.pbstation.clientes.find())
 
 @router.get("/{id}")
 async def obtener_cliente(id: str, token: str = Depends(validar_token)):
@@ -37,8 +37,8 @@ async def crear_cliente(cliente: Cliente, token: str = Depends(validar_token), x
                 status_code=status.HTTP_400_BAD_REQUEST, detail='El cliente ya existe en la base de datos. (Razon Social)')
     cliente_dict = dict(cliente) #//TODO: no se si es mejor asi o usar cliente_dict = cliente.model_dump(), investigar
     del cliente_dict["id"] #quitar el id para que no se guarde como null
-    id = db_client.local.clientes.insert_one(cliente_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nuevo_cliente = cliente_schema(db_client.local.clientes.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
+    id = db_client.pbstation.clientes.insert_one(cliente_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nuevo_cliente = cliente_schema(db_client.pbstation.clientes.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
     await manager.broadcast(
         f"post-cliente:{str(id)}", 
         exclude_connection_id=x_connection_id
@@ -49,7 +49,7 @@ async def crear_cliente(cliente: Cliente, token: str = Depends(validar_token), x
 async def agregar_adeudo(cliente_id: str, adeudo: Adeudo, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     try:
         # Verificar que el cliente existe
-        cliente_existente = db_client.local.clientes.find_one({"_id": ObjectId(cliente_id)})
+        cliente_existente = db_client.pbstation.clientes.find_one({"_id": ObjectId(cliente_id)})
         if not cliente_existente:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -71,7 +71,7 @@ async def agregar_adeudo(cliente_id: str, adeudo: Adeudo, token: str = Depends(v
         adeudo_dict["monto_pendiente"] = Decimal128(adeudo_dict["monto_pendiente"])
         
         # Agregar el nuevo adeudo usando $push
-        db_client.local.clientes.update_one(
+        db_client.pbstation.clientes.update_one(
             {"_id": ObjectId(cliente_id)},
             {"$push": {"adeudos": adeudo_dict}}
         )
@@ -99,7 +99,7 @@ async def agregar_adeudo(cliente_id: str, adeudo: Adeudo, token: str = Depends(v
 async def eliminar_adeudo(cliente_id: str, venta_id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
     try:
         # Verificar que el cliente existe
-        cliente_existente = db_client.local.clientes.find_one({"_id": ObjectId(cliente_id)})
+        cliente_existente = db_client.pbstation.clientes.find_one({"_id": ObjectId(cliente_id)})
         if not cliente_existente:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -119,7 +119,7 @@ async def eliminar_adeudo(cliente_id: str, venta_id: str, token: str = Depends(v
                 detail='Adeudo no encontrado para esta venta_id'
             )
         # Eliminar el adeudo usando $pull
-        result = db_client.local.clientes.update_one(
+        result = db_client.pbstation.clientes.update_one(
             {"_id": ObjectId(cliente_id)},
             {"$pull": {"adeudos": {"venta_id": venta_id}}}
         )
@@ -160,7 +160,7 @@ async def actualizar_cliente(cliente: Cliente, token: str = Depends(validar_toke
             if "monto_pendiente" in adeudo and adeudo["monto_pendiente"] is not None:
                 adeudo["monto_pendiente"] = Decimal128(str(adeudo["monto_pendiente"]))
     try:
-        result = db_client.local.clientes.find_one_and_replace(
+        result = db_client.pbstation.clientes.find_one_and_replace(
             {"_id": ObjectId(cliente.id)}, 
             cliente_dict
         )
@@ -182,7 +182,7 @@ async def actualizar_cliente(cliente: Cliente, token: str = Depends(validar_toke
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
 async def delete_cliente(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    found = db_client.local.clientes.find_one_and_delete({"_id": ObjectId(id)})
+    found = db_client.pbstation.clientes.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro el cliente')
     else:
@@ -194,7 +194,7 @@ async def delete_cliente(id: str, token: str = Depends(validar_token), x_connect
 
 def search_cliente(field: str, key):
     try:
-        cliente = db_client.local.clientes.find_one({field: key})
+        cliente = db_client.pbstation.clientes.find_one({field: key})
         if not cliente:  # Verificar si no se encontró el cliente
             return None
         return Cliente(**cliente_schema(cliente))  # el ** sirve para pasar los valores del diccionario

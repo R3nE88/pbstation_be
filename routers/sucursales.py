@@ -14,7 +14,7 @@ router = APIRouter(prefix="/sucursales", tags=["sucursales"])
  
 @router.get("/all", response_model=list[Sucursal])
 async def obtener_sucursales(token: str = Depends(validar_token)):
-    return sucursales_schema(db_client.local.sucursales.find({"activo": True}))
+    return sucursales_schema(db_client.pbstation.sucursales.find({"activo": True}))
 
 @router.get("/{id}")
 async def obtener_sucursal(id: str, token: str = Depends(validar_token)):
@@ -35,10 +35,10 @@ async def crear_sucursal(sucursal: Sucursal, token: str = Depends(validar_token)
     sucursal_dict = dict(sucursal)
     del sucursal_dict["id"] #quitar el id para que no se guarde como null
     # generar prefijo atómico y sobreeescribir cualquier input
-    prefijo = obtener_siguiente_prefijo(db_client.local)
+    prefijo = obtener_siguiente_prefijo(db_client.pbstation)
     sucursal_dict["prefijo_folio"] = prefijo
-    id = db_client.local.sucursales.insert_one(sucursal_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_sucuesal = sucursal_schema(db_client.local.sucursales.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
+    id = db_client.pbstation.sucursales.insert_one(sucursal_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nueva_sucuesal = sucursal_schema(db_client.pbstation.sucursales.find_one({"_id":id})) #izquierda= que tiene que buscar. derecha= esto tiene que buscar
     await manager.broadcast(
         f"post-sucursal:{str(id)}",
         exclude_connection_id=x_connection_id
@@ -55,7 +55,7 @@ async def actualizar_sucursal(sucursal: Sucursal, token: str = Depends(validar_t
     sucursal_dict = dict(sucursal)
     del sucursal_dict["id"] #eliminar id para no actualizar el id
     try:
-        result = db_client.local.sucursales.find_one_and_replace(
+        result = db_client.pbstation.sucursales.find_one_and_replace(
             {"_id":ObjectId(sucursal.id)},
             sucursal_dict
         ) 
@@ -71,7 +71,7 @@ async def actualizar_sucursal(sucursal: Sucursal, token: str = Depends(validar_t
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
 async def delete_sucursal(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    found = db_client.local.sucursales.find_one_and_update(
+    found = db_client.pbstation.sucursales.find_one_and_update(
         {"_id": ObjectId(id)},
         {"$set": {"activo": False}},
         return_document=ReturnDocument.AFTER
@@ -87,7 +87,7 @@ async def delete_sucursal(id: str, token: str = Depends(validar_token), x_connec
     
 def search_sucursal(field: str, key):
     try:
-        sucursal = db_client.local.sucursales.find_one({field: key})
+        sucursal = db_client.pbstation.sucursales.find_one({field: key})
         if not sucursal:  # Verificar si no se encontró la sucursal
             return None
         return Sucursal(**sucursal_schema(sucursal))  # el ** sirve para pasar los valores del diccionario

@@ -13,7 +13,7 @@ router = APIRouter(prefix="/ventas_enviadas", tags=["ventas_enviadas"])
 
 @router.get("/all", response_model=list[VentaEnviada])
 async def obtener_ventas(token: str = Depends(validar_token)):
-    return ventas_enviadas_schema(db_client.local.ventas_enviadas.find())
+    return ventas_enviadas_schema(db_client.pbstation.ventas_enviadas.find())
 
 @router.get("/{id}")
 async def obtener_venta(id: str, token: str = Depends(validar_token)):
@@ -40,8 +40,8 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token), 
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
         detalle.pop("id", None)  # ✅ eliminar el duplicado
-    id = db_client.local.ventas_enviadas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_venta = venta_enviada_schema(db_client.local.ventas_enviadas.find_one({"_id":id}))
+    id = db_client.pbstation.ventas_enviadas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    nueva_venta = venta_enviada_schema(db_client.pbstation.ventas_enviadas.find_one({"_id":id}))
     await manager.broadcast(
         f"ventaenviada:{str(venta_dict["sucursal_id"])}",
         exclude_connection_id=x_connection_id
@@ -50,7 +50,7 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token), 
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
 async def detele_venta(id: str, sucursal: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-     found = db_client.local.ventas_enviadas.find_one_and_delete({"_id": ObjectId(id)})
+     found = db_client.pbstation.ventas_enviadas.find_one_and_delete({"_id": ObjectId(id)})
      if not found:
          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la venta')
      else:
@@ -62,7 +62,7 @@ async def detele_venta(id: str, sucursal: str, token: str = Depends(validar_toke
      
 def search_venta(field: str, key):
     try:
-        venta = db_client.local.ventas_enviadas.find_one({field: key})
+        venta = db_client.pbstation.ventas_enviadas.find_one({field: key})
         if not venta:  # Verificar si no se encontró la venta
             return None
         return VentaEnviada(**venta_enviada_schema(venta))  # el ** sirve para pasar los valores del diccionario

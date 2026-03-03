@@ -13,7 +13,7 @@ router = APIRouter(prefix="/productos", tags=["productos"])
 
 @router.get("/all", response_model=list[Producto])
 async def obtener_productos(token: str = Depends(validar_token)):
-    return productos_schema(db_client.local.productos.find())
+    return productos_schema(db_client.pbstation.productos.find())
 
 @router.get("/{id}")
 async def obtener_producto(id: str, token: str = Depends(validar_token)):
@@ -40,9 +40,9 @@ async def crear_producto(
     del producto_dict["id"]
     producto_dict["precio"] = Decimal128(producto_dict["precio"])
     
-    id = db_client.local.productos.insert_one(producto_dict).inserted_id
+    id = db_client.pbstation.productos.insert_one(producto_dict).inserted_id
 
-    nuevo_producto = producto_schema(db_client.local.productos.find_one({"_id":id}))
+    nuevo_producto = producto_schema(db_client.pbstation.productos.find_one({"_id":id}))
     
     await manager.broadcast(
         f"post-product:{str(id)}", 
@@ -66,7 +66,7 @@ async def actualizar_producto(
     del producto_dict["id"]
     producto_dict["precio"] = Decimal128(str(producto.precio))
     try:
-        result = db_client.local.productos.find_one_and_replace(
+        result = db_client.pbstation.productos.find_one_and_replace(
             {"_id":ObjectId(producto.id)},
             producto_dict
         )
@@ -91,7 +91,7 @@ async def detele_producto(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)  # ID de conexión del cliente
 ):
-    found = db_client.local.productos.find_one_and_delete({"_id": ObjectId(id)})
+    found = db_client.pbstation.productos.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, 
@@ -106,7 +106,7 @@ async def detele_producto(
     
 def search_producto(field: str, key):
     try:
-        producto = db_client.local.productos.find_one({field: key})
+        producto = db_client.pbstation.productos.find_one({field: key})
         if not producto:
             return None
         return Producto(**producto_schema(producto))

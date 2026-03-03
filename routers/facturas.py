@@ -34,9 +34,9 @@ async def obtener_facturas(
     if sucursal_id:
         filtros["sucursal_id"] = sucursal_id
     
-    total = db_client.local.facturas.count_documents(filtros)
+    total = db_client.pbstation.facturas.count_documents(filtros)
     skip = (page - 1) * page_size
-    facturas = db_client.local.facturas.find(filtros)\
+    facturas = db_client.pbstation.facturas.find(filtros)\
         .sort("fecha_creacion", -1)\
         .skip(skip)\
         .limit(page_size)
@@ -64,9 +64,9 @@ async def crear_factura(factura: Factura, token: str = Depends(validar_token), x
     factura_dict["impuestos"] = Decimal128(factura_dict["impuestos"])
     factura_dict["total"] = Decimal128(factura_dict["total"])
 
-    id = db_client.local.facturas.insert_one(factura_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    id = db_client.pbstation.facturas.insert_one(factura_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     
-    nueva_factura = factura_schema(db_client.local.facturas.find_one({"_id":id}))
+    nueva_factura = factura_schema(db_client.pbstation.facturas.find_one({"_id":id}))
 
     await manager.broadcast(
         f"post-factura:{str(id)}",

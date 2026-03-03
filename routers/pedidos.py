@@ -26,7 +26,7 @@ MAX_TOTAL_SIZE = MAX_UPLOAD_SIZE_GB * 1024 * 1024 * 1024
 
 @router.get("/all", response_model=List[Pedido])
 async def obtener_pedidos(token: str = Depends(validar_token)):
-    pedidos = db_client.local.pedidos.find(
+    pedidos = db_client.pbstation.pedidos.find(
         {"estado": {"$ne": "entregado"}}
     ).sort("fecha", 1)
     return pedidos_schema(pedidos)
@@ -41,9 +41,9 @@ async def obtener_pedidos_historial(
     filtros = {"$or": [{"estado": "entregado"}, {"cancelado": True}]}
     if sucursal_id:
         filtros["sucursal_id"] = sucursal_id
-    total = db_client.local.pedidos.count_documents(filtros)
+    total = db_client.pbstation.pedidos.count_documents(filtros)
     skip = (page - 1) * page_size
-    pedidos = db_client.local.pedidos.find(filtros)\
+    pedidos = db_client.pbstation.pedidos.find(filtros)\
         .sort("fecha_entregado", -1)\
         .skip(skip)\
         .limit(page_size)
@@ -62,7 +62,7 @@ async def obtener_pedidos_historial(
 
 @router.get("/by-venta-folio/{venta_folio}", response_model=Pedido)
 async def obtener_pedido_por_venta_folio(venta_folio: str, token: str = Depends(validar_token)):
-    pedido = db_client.local.pedidos.find_one({"venta_folio": venta_folio})
+    pedido = db_client.pbstation.pedidos.find_one({"venta_folio": venta_folio})
     
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado para el folio de venta proporcionado")
@@ -107,7 +107,7 @@ async def crear_pedido(
                 detail=f"El tamaño total excede el límite de {MAX_UPLOAD_SIZE_GB}GB"
             )
     
-    folio = generar_folio_pedido(db_client.local, pedido_data['sucursal_id'])
+    folio = generar_folio_pedido(db_client.pbstation, pedido_data['sucursal_id'])
 
     pedido_temp = {
         "cliente_id": pedido_data['cliente_id'],
@@ -126,7 +126,7 @@ async def crear_pedido(
         "cancelado": False,        
     }
 
-    result = db_client.local.pedidos.insert_one(pedido_temp)
+    result = db_client.pbstation.pedidos.insert_one(pedido_temp)
     pedido_id = str(result.inserted_id)
 
     if archivos_temp:
@@ -153,15 +153,15 @@ async def crear_pedido(
                 import shutil
                 if os.path.exists(pedido_dir):
                     shutil.rmtree(pedido_dir)
-                db_client.local.pedidos.delete_one({"_id": ObjectId(pedido_id)})
+                db_client.pbstation.pedidos.delete_one({"_id": ObjectId(pedido_id)})
                 raise HTTPException(status_code=500, detail=f"Error guardando archivo: {str(e)}")
 
-        db_client.local.pedidos.update_one(
+        db_client.pbstation.pedidos.update_one(
             {"_id": ObjectId(pedido_id)},
             {"$set": {"archivos": archivos_guardados}}
         )
 
-    nuevo_pedido = pedido_schema(db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)}))
+    nuevo_pedido = pedido_schema(db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)}))
     await manager.broadcast(f"post-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
     return Pedido(**nuevo_pedido)
 
@@ -172,7 +172,7 @@ async def agregar_archivos_pedido(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
@@ -220,13 +220,13 @@ async def agregar_archivos_pedido(
     if pedido.get("estado") == "en espera":
         update_data["estado"] = "pendiente"
     
-    db_client.local.pedidos.update_one(
+    db_client.pbstation.pedidos.update_one(
         {"_id": ObjectId(pedido_id)},
         {"$set": update_data}
     )
 
     pedido_actualizado = pedido_schema(
-        db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+        db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
     await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
@@ -238,7 +238,7 @@ async def descargar_archivo_individual(
     archivo_nombre: str,
     token: str = Depends(validar_token)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
@@ -263,7 +263,7 @@ async def descargar_archivos_zip(
     pedido_id: str,
     token: str = Depends(validar_token)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
 
@@ -304,11 +304,11 @@ async def confirmar_pedido(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
-    resultado = db_client.local.pedidos.update_one(
+    resultado = db_client.pbstation.pedidos.update_one(
         {"_id": ObjectId(pedido_id)},
         {"$set": {"venta_id": venta_id, "venta_folio": venta_folio}}
     )
@@ -317,7 +317,7 @@ async def confirmar_pedido(
         raise HTTPException(status_code=400, detail="No se pudo actualizar el pedido")
     
     pedido_actualizado = pedido_schema(
-        db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+        db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
     await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
@@ -332,7 +332,7 @@ async def actualizar_estado_pedido(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
@@ -364,7 +364,7 @@ async def actualizar_estado_pedido(
             # No lanzamos error para no interrumpir el cambio de estado
     
     # Actualizar el pedido con todos los cambios
-    resultado = db_client.local.pedidos.update_one(
+    resultado = db_client.pbstation.pedidos.update_one(
         {"_id": ObjectId(pedido_id)},
         {"$set": update_data}
     )
@@ -373,7 +373,7 @@ async def actualizar_estado_pedido(
         raise HTTPException(status_code=400, detail="No se pudo actualizar el pedido")
     
     pedido_actualizado = pedido_schema(
-        db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+        db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
     await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
@@ -386,12 +386,12 @@ async def cancelar_pedido(
     token: str = Depends(validar_token),
     x_connection_id: Optional[str] = Header(None)
 ):
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
     # Actualizar el campo cancelado y agregar fecha_entregado
-    resultado = db_client.local.pedidos.update_one(
+    resultado = db_client.pbstation.pedidos.update_one(
         {"_id": ObjectId(pedido_id)},
         {"$set": {
             "cancelado": True,
@@ -411,7 +411,7 @@ async def cancelar_pedido(
             print(f"Archivos del pedido {pedido_id} eliminados automáticamente")
             
             # Vaciar el array de archivos en la base de datos
-            db_client.local.pedidos.update_one(
+            db_client.pbstation.pedidos.update_one(
                 {"_id": ObjectId(pedido_id)},
                 {"$set": {"archivos": []}}
             )
@@ -420,7 +420,7 @@ async def cancelar_pedido(
         # No lanzamos error para no interrumpir la cancelación
     
     pedido_actualizado = pedido_schema(
-        db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+        db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     )
     
     await manager.broadcast(f"update-pedido:{pedido_id}", exclude_connection_id=x_connection_id)
@@ -434,7 +434,7 @@ async def eliminar_pedido(
     x_connection_id: Optional[str] = Header(None)
 ):
     # Verificar que el pedido existe
-    pedido = db_client.local.pedidos.find_one({"_id": ObjectId(pedido_id)})
+    pedido = db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
@@ -449,7 +449,7 @@ async def eliminar_pedido(
         # Continuamos con la eliminación del pedido en la BD aunque falle la eliminación de archivos
     
     # Eliminar el pedido de la base de datos
-    resultado = db_client.local.pedidos.delete_one({"_id": ObjectId(pedido_id)})
+    resultado = db_client.pbstation.pedidos.delete_one({"_id": ObjectId(pedido_id)})
     
     if resultado.deleted_count == 0:
         raise HTTPException(status_code=400, detail="No se pudo eliminar el pedido")
@@ -528,7 +528,7 @@ async def eliminar_pedido(
 #             if usuario_entrego:
 #                 pedido_dict["usuario_id_entrego"] = usuario_entrego
             
-#             id_insertado = db_client.local.pedidos.insert_one(pedido_dict).inserted_id
+#             id_insertado = db_client.pbstation.pedidos.insert_one(pedido_dict).inserted_id
 #             pedidos_creados.append({
 #                 "id": str(id_insertado),
 #                 "folio": folio,

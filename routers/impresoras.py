@@ -12,11 +12,11 @@ router = APIRouter(prefix="/impresoras", tags=["impresoras"])
 
 @router.get("/all", response_model=list[Impresora])
 async def obtener_impresoras(token: str = Depends(validar_token)):
-    return impresoras_schema(db_client.local.impresoras.find())
+    return impresoras_schema(db_client.pbstation.impresoras.find())
 
 @router.get("/sucursal/{sucursal_id}", response_model=list[Impresora])
 async def obtener_impresoras_sucursal(sucursal_id: str, token: str = Depends(validar_token)):
-    impresoras = db_client.local.impresoras.find({"sucursal_id": sucursal_id})
+    impresoras = db_client.pbstation.impresoras.find({"sucursal_id": sucursal_id})
     return impresoras_schema(impresoras)
 
 @router.get("/{id}")
@@ -37,9 +37,9 @@ async def crear_impresora(impresora: Impresora, token: str = Depends(validar_tok
 
     impresora_dict = dict(impresora)
     del impresora_dict["id"] #quitar el id para que no se guarde como null
-    id = db_client.local.impresoras.insert_one(impresora_dict).inserted_id #mongodb crea automaticamente el id como "_id"
+    id = db_client.pbstation.impresoras.insert_one(impresora_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     
-    nueva_impresora = impresora_schema(db_client.local.impresoras.find_one({"_id":id}))
+    nueva_impresora = impresora_schema(db_client.pbstation.impresoras.find_one({"_id":id}))
 
     sucursal_id = impresora_dict.get("sucursal_id")
     await manager.broadcast_to_sucursal(
@@ -59,7 +59,7 @@ async def actualizar_impresora(impresora: Impresora, token: str = Depends(valida
     impresora_dict = impresora.model_dump() 
     del impresora_dict["id"]
     try:
-        result = db_client.local.impresoras.find_one_and_replace(
+        result = db_client.pbstation.impresoras.find_one_and_replace(
             {"_id": ObjectId(impresora.id)}, 
             impresora_dict
         )
@@ -78,7 +78,7 @@ async def actualizar_impresora(impresora: Impresora, token: str = Depends(valida
 
 @router.delete("/{id}/{sucursal_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def detele_impresora(id: str, sucursal_id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
-    found = db_client.local.impresoras.find_one_and_delete({"_id": ObjectId(id)})
+    found = db_client.pbstation.impresoras.find_one_and_delete({"_id": ObjectId(id)})
     if not found:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la impresora')
     else:
@@ -91,7 +91,7 @@ async def detele_impresora(id: str, sucursal_id: str, token: str = Depends(valid
     
 def search_impresora(field: str, key):
     try:
-        impresora = db_client.local.impresoras.find_one({field: key})
+        impresora = db_client.pbstation.impresoras.find_one({field: key})
         if not impresora:
             return None
         return Impresora(**impresora_schema(impresora)) 
