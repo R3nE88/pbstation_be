@@ -43,7 +43,7 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token), 
     id = db_client.pbstation.ventas_enviadas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_venta = venta_enviada_schema(db_client.pbstation.ventas_enviadas.find_one({"_id":id}))
     await manager.broadcast(
-        f"ventaenviada:{str(venta_dict["sucursal_id"])}",
+        f"ventaenviada:{str(venta_dict['sucursal_id'])}",
         exclude_connection_id=x_connection_id
     )
     return VentaEnviada(**nueva_venta)
