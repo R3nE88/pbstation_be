@@ -3,6 +3,29 @@ Inicialización de la base de datos con usuario admin y cliente por defecto
 """
 from core.database import db
 
+def crear_configuracion_defecto():
+    """
+    Crea la configuración por defecto si no existe en la base de datos.
+    Solo se ejecuta si la colección de configuracion está vacía.
+    """
+    try:
+        config = db.configuracion.find_one()
+        if config is None:
+            config_defecto = {
+                "precio_dolar": 18.4,
+                "iva": 8,
+                "last_version": "0.8.8"
+            }
+            db.configuracion.insert_one(config_defecto)
+            print("✓ Configuración por defecto creada con éxito.")
+            return True
+        else:
+            print("✓ Configuración ya existe en la base de datos.")
+            return False
+    except Exception as e:
+        print(f"✗ Error al crear configuración por defecto: {e}")
+        return False
+
 def crear_usuario_admin_defecto():
     """
     Crea un usuario admin por defecto si no hay usuarios en la base de datos.

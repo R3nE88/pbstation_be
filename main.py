@@ -3,12 +3,13 @@ from dotenv import load_dotenv
 import routers.facturas as facturas
 from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores, pedidos
 from scheduler import iniciar_scheduler
-from init_database import crear_usuario_admin_defecto, crear_cliente_defecto
+from init_database import crear_configuracion_defecto, crear_usuario_admin_defecto, crear_cliente_defecto
 
 load_dotenv()
 app = FastAPI()
 
-# Inicializar base de datos con usuario admin y cliente por defecto
+# Inicializar base de datos con datos por defecto
+crear_configuracion_defecto()
 crear_usuario_admin_defecto()
 crear_cliente_defecto()
 
