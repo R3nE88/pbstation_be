@@ -6,7 +6,8 @@ import time
 from fastapi import HTTPException, status, Header
 
 dotenv_path = os.path.join(os.path.dirname(__file__), "config.env")
-load_dotenv(dotenv_path=dotenv_path)
+if os.path.exists(dotenv_path):
+    load_dotenv(dotenv_path=dotenv_path)
 SECRET_KEY = os.getenv("SECRET_KEY")
 
 if SECRET_KEY is None:
