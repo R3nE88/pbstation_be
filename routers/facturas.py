@@ -1,6 +1,7 @@
 import base64
 from typing import Optional
-from bson import Decimal128
+from bson import Decimal128, ObjectId
+from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
 import requests
 from os import getenv
@@ -37,7 +38,7 @@ async def obtener_facturas(
     total = db_client.pbstation.facturas.count_documents(filtros)
     skip = (page - 1) * page_size
     facturas = db_client.pbstation.facturas.find(filtros)\
-        .sort("fecha_creacion", -1)\
+        .sort("_id", -1)\
         .skip(skip)\
         .limit(page_size)
     total_pages = (total + page_size - 1) // page_size
@@ -74,6 +75,16 @@ async def crear_factura(factura: Factura, token: str = Depends(validar_token), x
     )
     return Factura(**nueva_factura) #el ** sirve para pasar los valores del diccionario
 
+
+@router.get("/{id}")
+async def obtener_factura(id: str, token: str = Depends(validar_token)):
+    try:
+        factura = db_client.pbstation.facturas.find_one({"_id": ObjectId(id)})
+        if not factura:
+            raise HTTPException(status_code=404, detail="Factura no encontrada")
+        return factura_schema(factura)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
 
 @router.get("/check")
 def check():

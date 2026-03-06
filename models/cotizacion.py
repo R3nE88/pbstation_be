@@ -11,7 +11,7 @@ class Cotizacion(BaseModel): #Entidad #modelo
     sucursal_id: str
     detalles: list[DetalleVenta]
     fecha_cotizacion: datetime
-    comentarios_venta: str
+    comentarios_venta: str | None = None
     subtotal: Decimal
     descuento: Decimal
     iva: Decimal

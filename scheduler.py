@@ -11,12 +11,14 @@ def verificar_cotizaciones_vencidas():
     zona = timezone("America/Hermosillo")
     print("Hora local:", datetime.now(zona))
     hoy = datetime.now()
+    # Primer día del mes actual — cotizaciones de meses anteriores están vencidas
+    inicio_mes = datetime(hoy.year, hoy.month, 1)
     cotizaciones = db.cotizaciones.find({"vigente": True})
 
     vencidas = []
     for c in cotizaciones:
         fecha = c["fecha_cotizacion"]
-        if fecha.month < hoy.month or fecha.year < hoy.year:
+        if fecha < inicio_mes:
             vencidas.append(c["_id"])
 
     if vencidas:

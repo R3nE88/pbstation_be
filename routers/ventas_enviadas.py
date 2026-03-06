@@ -39,6 +39,9 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token), 
         detalle["descuento_aplicado"] = Decimal128(detalle["descuento_aplicado"])
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
+        detalle["total"] = Decimal128(detalle["total"])
+        if detalle.get("cotizacion_precio") is not None:
+            detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"])
         detalle.pop("id", None)  # ✅ eliminar el duplicado
     id = db_client.pbstation.ventas_enviadas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_venta = venta_enviada_schema(db_client.pbstation.ventas_enviadas.find_one({"_id":id}))

@@ -43,7 +43,8 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
         detalle["descuento_aplicado"] = Decimal128(detalle["descuento_aplicado"])
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
-        detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"])
+        detalle["total"] = Decimal128(detalle["total"])
+        detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"]) if detalle["cotizacion_precio"] is not None else None
         detalle.pop("id", None)  # ✅ eliminar el duplicado
     id = db_client.pbstation.cotizaciones.insert_one(cotizacion_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_cotizacion = cotizacion_schema(db_client.pbstation.cotizaciones.find_one({"_id":id}))
@@ -52,6 +53,42 @@ async def crear_cotizacion(cotizacion: Cotizacion, token: str = Depends(validar_
         exclude_connection_id=x_connection_id
     )
     return Cotizacion(**nueva_cotizacion)
+
+@router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT)
+async def eliminar_cotizacion(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+    try:
+        found = db_client.pbstation.cotizaciones.find_one({"_id": ObjectId(id)})
+        if not found:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada")
+        db_client.pbstation.cotizaciones.delete_one({"_id": ObjectId(id)})
+        await manager.broadcast(
+            f"delete-cotizacion:{str(id)}",
+            exclude_connection_id=x_connection_id
+        )
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
+
+@router.patch("/{id}/renovar", response_model=Cotizacion, status_code=status.HTTP_200_OK)
+async def renovar_cotizacion(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+    try:
+        oid = ObjectId(id)
+        found = db_client.pbstation.cotizaciones.find_one({"_id": oid})
+        if not found:
+            raise HTTPException(status_code=404, detail="Cotización no encontrada")
+        
+        from datetime import datetime
+        db_client.pbstation.cotizaciones.update_one(
+            {"_id": oid},
+            {"$set": {"vigente": True, "fecha_cotizacion": datetime.now()}}
+        )
+        cotizacion_actualizada = cotizacion_schema(db_client.pbstation.cotizaciones.find_one({"_id": oid}))
+        await manager.broadcast(
+            f"put-cotizacion:{str(id)}",
+            exclude_connection_id=x_connection_id
+        )
+        return Cotizacion(**cotizacion_actualizada)
+    except InvalidId:
+        raise HTTPException(status_code=400, detail="Formato de ID inválido")
 
 def search_cotizaciones(field: str, key):
     try:

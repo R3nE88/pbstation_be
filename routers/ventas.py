@@ -264,6 +264,8 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
         detalle["iva"] = Decimal128(detalle["iva"])
         detalle["subtotal"] = Decimal128(detalle["subtotal"])
         detalle["total"] = Decimal128(detalle["total"])
+        if detalle.get("cotizacion_precio") is not None:
+            detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"])
     id = db_client.pbstation.ventas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_venta = venta_schema(db_client.pbstation.ventas.find_one({"_id":id}))
     db_client.pbstation.cortes.update_one(
