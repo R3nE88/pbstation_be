@@ -71,7 +71,7 @@ async def crear_caja(caja: Caja, token: str = Depends(validar_token)):
     caja_dict = caja.model_dump()
 
     #generacion de folio
-    caja_dict["folio"] = generar_folio_caja(db_client.pbstation)
+    caja_dict["folio"] = generar_folio_caja(db_client.pbstation, caja.sucursal_id)
 
     del caja_dict["id"] #quitar el id para que no se guarde como null
     caja_dict["venta_total"] = Decimal128(str(caja_dict["venta_total"])) if caja_dict["venta_total"] is not None else None
