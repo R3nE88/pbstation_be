@@ -10,6 +10,7 @@ from schemas.corte import cortes_schema, corte_schema
 from schemas.movimiento_caja import movimiento_caja_schema, movimiento_cajas_schema
 from bson.decimal128 import Decimal128
 from validar_token import validar_token 
+from datetime import datetime
 
 router = APIRouter(prefix="/cajas", tags=["cajas"])
 
@@ -19,11 +20,35 @@ async def obtener_cajas(
     page: int = 1,
     page_size: int = 60,
     sucursal_id: str = None,
+    fecha_inicio: str = None,
+    fecha_fin: str = None,
+    folio: str = None,
     token: str = Depends(validar_token)
 ):
     filtros = {"estado": "cerrada"}  
     if sucursal_id:
         filtros["sucursal_id"] = sucursal_id
+        
+    if folio:
+        filtros["folio"] = {"$regex": folio, "$options": "i"}
+        
+    if fecha_inicio or fecha_fin:
+        fecha_filtro = {}
+        if fecha_inicio:
+            try:
+                # Add time part for start of day
+                fecha_filtro["$gte"] = datetime.strptime(f"{fecha_inicio} 00:00:00", "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
+        if fecha_fin:
+            try:
+                # Add time part for end of day
+                fecha_filtro["$lte"] = datetime.strptime(f"{fecha_fin} 23:59:59", "%Y-%m-%d %H:%M:%S")
+            except ValueError:
+                pass
+        if fecha_filtro:
+            filtros["fecha_apertura"] = fecha_filtro
+
     total = db_client.pbstation.cajas.count_documents(filtros)
     skip = (page - 1) * page_size
     cajas = db_client.pbstation.cajas.find(filtros)\
