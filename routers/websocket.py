@@ -19,7 +19,8 @@ async def websocket_endpoint(websocket: WebSocket, sucursal_id: Optional[str] = 
         while True:
             data = await websocket.receive_text()
             # Aquí puedes manejar mensajes entrantes si quieres (opcional)
-            print(f"Mensaje recibido de cliente {connection_id} {'(sucursal ' + sucursal_id + ')' if sucursal_id else '(sin sucursal)'}: {data}")
+            if data != 'ping':
+                print(f"Mensaje recibido de cliente {connection_id} {'(sucursal ' + sucursal_id + ')' if sucursal_id else '(sin sucursal)'}: {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print(f"Cliente {connection_id} desconectado")
@@ -36,7 +37,8 @@ async def websocket_endpoint_with_sucursal(websocket: WebSocket, sucursal_id: st
         
         while True:
             data = await websocket.receive_text()
-            print(f"Mensaje recibido de cliente {connection_id} (sucursal {sucursal_id}): {data}")
+            if data != 'ping':
+                print(f"Mensaje recibido de cliente {connection_id} (sucursal {sucursal_id}): {data}")
     except WebSocketDisconnect:
         manager.disconnect(websocket)
         print(f"Cliente {connection_id} desconectado de sucursal {sucursal_id}")

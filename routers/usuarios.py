@@ -41,7 +41,7 @@ async def crear_usuario(usuario: Usuario, token: str = Depends(validar_token), x
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail='Este Correo ya está asociado a un Usuario')
     usuario.telefono = usuario.telefono
-    if type(search_usuario("telefono", usuario.telefono)) == Usuario:
+    if usuario.telefono is not None and type(search_usuario("telefono", usuario.telefono)) == Usuario:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail='Este Teléfono ya está asociado a un Usuario')
     usuario.correo = usuario.correo.lower()

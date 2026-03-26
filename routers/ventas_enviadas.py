@@ -45,8 +45,9 @@ async def crear_venta(venta: VentaEnviada, token: str = Depends(validar_token), 
         detalle.pop("id", None)  # ✅ eliminar el duplicado
     id = db_client.pbstation.ventas_enviadas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
     nueva_venta = venta_enviada_schema(db_client.pbstation.ventas_enviadas.find_one({"_id":id}))
-    await manager.broadcast(
-        f"ventaenviada:{str(venta_dict['sucursal_id'])}",
+    await manager.broadcast_to_sucursal(
+        message=f"ventaenviada:{str(venta_dict['sucursal_id'])}",
+        sucursal_id=str(venta_dict['sucursal_id']),
         exclude_connection_id=x_connection_id
     )
     return VentaEnviada(**nueva_venta)
@@ -57,8 +58,9 @@ async def detele_venta(id: str, sucursal: str, token: str = Depends(validar_toke
      if not found:
          raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail='No se encontro la venta')
      else:
-         await manager.broadcast(
-            f"ventaenviada:{sucursal}",
+         await manager.broadcast_to_sucursal(
+            message=f"ventaenviada:{sucursal}",
+            sucursal_id=sucursal,
             exclude_connection_id=x_connection_id
         )
          return {'message':'Eliminada con exito'} 
