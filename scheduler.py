@@ -1,12 +1,13 @@
-from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.database import db_client
 from datetime import datetime
 from pytz import timezone
+from routers.websocket import manager
 
 # Conexión a tu base de datos MongoDB
 db = db_client.pbstation
 
-def verificar_cotizaciones_vencidas():
+async def verificar_cotizaciones_vencidas():
     print("Verificando cotizaciones vencidas...")
     zona = timezone("America/Hermosillo")
     print("Hora local:", datetime.now(zona))
@@ -26,10 +27,11 @@ def verificar_cotizaciones_vencidas():
             {"_id": {"$in": vencidas}},
             {"$set": {"vigente": False}}
         )
+        await manager.broadcast("reload-cotizaciones")
         print(f"Actualizadas {len(vencidas)} cotizaciones como vencidas")
 
 def iniciar_scheduler():
-    verificar_cotizaciones_vencidas()
-    scheduler = BackgroundScheduler(timezone="America/Hermosillo")
+    scheduler = AsyncIOScheduler(timezone="America/Hermosillo")
     scheduler.add_job(verificar_cotizaciones_vencidas, 'cron', hour=2, minute=0)  # cada día a las 2am
     scheduler.start()
+

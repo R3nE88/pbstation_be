@@ -15,8 +15,8 @@ if SECRET_KEY is None:
 
 SECRET_KEY = SECRET_KEY.strip()
 
-# Tolerancia de tiempo en segundos (60 segundos = 1 minuto)
-TIMESTAMP_TOLERANCE_SECONDS = 60
+# Tolerancia de tiempo en segundos (180 segundos = 3 minutos)
+TIMESTAMP_TOLERANCE_SECONDS = 180
 
 def validar_token(
     x_timestamp: str = Header(None, description="Timestamp de la petición en milisegundos"),
