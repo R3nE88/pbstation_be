@@ -32,6 +32,12 @@ async def verificar_cotizaciones_vencidas():
 
 def iniciar_scheduler():
     scheduler = AsyncIOScheduler(timezone="America/Hermosillo")
-    scheduler.add_job(verificar_cotizaciones_vencidas, 'cron', hour=2, minute=0)  # cada día a las 2am
+    scheduler.add_job(
+        verificar_cotizaciones_vencidas, 
+        'cron', 
+        hour=10, 
+        minute=0,
+        misfire_grace_time=None
+    )  # cada día a las 2am, misfire_grace_time evita que se cancele si la PC estaba suspendida
     scheduler.start()
 

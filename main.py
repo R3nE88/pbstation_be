@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
 import routers.facturas as facturas
-from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores, pedidos
+from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores, pedidos, correo
 from scheduler import iniciar_scheduler, verificar_cotizaciones_vencidas
 from init_database import crear_configuracion_defecto, crear_usuario_admin_defecto, crear_cliente_defecto
 
@@ -29,6 +29,7 @@ app.include_router(impresoras.router)
 app.include_router(contadores.router)
 app.include_router(pedidos.router)
 app.include_router(facturas.router)
+app.include_router(correo.router)
 
 @app.on_event("startup")
 async def startup_event():
