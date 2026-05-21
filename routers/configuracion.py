@@ -5,7 +5,7 @@ from fastapi.params import Depends
 from pydantic import BaseModel, Field
 from config_manager import cargar_config, guardar_config
 from routers.websocket import manager
-from validar_token import validar_token 
+from validar_token import require_permission, validar_token
 
 router = APIRouter(prefix="/configuracion", tags=["configuracion"])
 
@@ -19,13 +19,13 @@ class VersionUpdate(BaseModel):
     last_version: str = Field(..., description="Versión actual del sistema")
 
 @router.get("/")
-def obtener_config(token: str = Depends(validar_token)):
+def obtener_config():
     return cargar_config()
 
 @router.put("/precio-dolar")
 async def actualizar_precio_dolar(
     data: PrecioDolarUpdate,
-    token: str = Depends(validar_token),
+    token: dict = Depends(require_permission("admin")),
     x_connection_id: Optional[str] = Header(None)
 ):
     config = cargar_config()
@@ -45,7 +45,7 @@ async def actualizar_precio_dolar(
 @router.put("/iva")
 async def actualizar_iva(
     data: IvaUpdate,
-    token: str = Depends(validar_token),
+    token: dict = Depends(require_permission("admin")),
     x_connection_id: Optional[str] = Header(None)
 ):
     config = cargar_config()
@@ -65,7 +65,7 @@ async def actualizar_iva(
 @router.put("/version")
 async def actualizar_version(
     data: VersionUpdate,
-    token: str = Depends(validar_token),
+    token: dict = Depends(require_permission("admin")),
     x_connection_id: Optional[str] = Header(None)
 ):
     config = cargar_config()

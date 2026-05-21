@@ -3,6 +3,17 @@ Inicialización de la base de datos con usuario admin y cliente por defecto
 """
 from core.database import db
 
+def crear_indices_auth():
+    try:
+        db.sesiones.create_index("session_id", unique=True)
+        db.sesiones.create_index("user_id")
+        db.sesiones.create_index("expires_at")
+        print("[OK] Indices de sesiones verificados.")
+        return True
+    except Exception as e:
+        print(f"[ERROR] Error al crear indices de sesiones: {e}")
+        return False
+
 def crear_configuracion_defecto():
     """
     Crea la configuración por defecto si no existe en la base de datos.
@@ -17,13 +28,13 @@ def crear_configuracion_defecto():
                 "last_version": "0.8.8"
             }
             db.configuracion.insert_one(config_defecto)
-            print("✓ Configuración por defecto creada con éxito.")
+            print("[OK] Configuracion por defecto creada con exito.")
             return True
         else:
-            print("✓ Configuración ya existe en la base de datos.")
+            print("[OK] Configuracion ya existe en la base de datos.")
             return False
     except Exception as e:
-        print(f"✗ Error al crear configuración por defecto: {e}")
+        print(f"[ERROR] Error al crear configuracion por defecto: {e}")
         return False
 
 def crear_usuario_admin_defecto():
@@ -49,14 +60,14 @@ def crear_usuario_admin_defecto():
             
             # Insertar el usuario admin
             resultado = db.usuarios.insert_one(usuario_admin)
-            print(f"✓ Usuario admin creado con éxito. ID: {resultado.inserted_id}")
+            print(f"[OK] Usuario admin creado con exito. ID: {resultado.inserted_id}")
             return True
         else:
-            print(f"✓ Base de datos ya contiene {usuarios_count} usuario(s). No se crea admin por defecto.")
+            print(f"[OK] Base de datos ya contiene {usuarios_count} usuario(s). No se crea admin por defecto.")
             return False
             
     except Exception as e:
-        print(f"✗ Error al crear usuario admin por defecto: {e}")
+        print(f"[ERROR] Error al crear usuario admin por defecto: {e}")
         return False
 
 
@@ -91,13 +102,13 @@ def crear_cliente_defecto():
             
             # Insertar el cliente
             resultado = db.clientes.insert_one(cliente_publico)
-            print(f"✓ Cliente 'Público General' creado con éxito. ID: {resultado.inserted_id}")
+            print(f"[OK] Cliente 'Publico General' creado con exito. ID: {resultado.inserted_id}")
             return True
         else:
-            print(f"✓ Base de datos ya contiene {clientes_count} cliente(s). No se crea cliente por defecto.")
+            print(f"[OK] Base de datos ya contiene {clientes_count} cliente(s). No se crea cliente por defecto.")
             return False
             
     except Exception as e:
-        print(f"✗ Error al crear cliente por defecto: {e}")
+        print(f"[ERROR] Error al crear cliente por defecto: {e}")
         return False
 

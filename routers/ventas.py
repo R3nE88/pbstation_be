@@ -11,7 +11,7 @@ from models.venta import Venta
 from schemas.venta import venta_schema
 from routers.websocket import manager
 from bson.decimal128 import Decimal128
-from validar_token import validar_token 
+from validar_token import require_permission, validar_token
 
 router = APIRouter(prefix="/ventas", tags=["ventas"])
 
@@ -238,6 +238,13 @@ async def obtener_ventas_sin_factura_del_mes(
 
 @router.post("/{corte_id}", response_model=Venta, status_code=status.HTTP_201_CREATED) #post
 async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+    try:
+        corte_oid = ObjectId(corte_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="ID de corte invalido")
+    if not db_client.pbstation.cortes.find_one({"_id": corte_oid}):
+        raise HTTPException(status_code=404, detail="Corte no encontrado")
+
     venta_dict = venta.model_dump()
     #generacion de folio
     if not venta_dict.get("folio"):
@@ -267,11 +274,14 @@ async def pagar_venta(venta: Venta, corte_id:str, is_deuda:bool,  token: str = D
         if detalle.get("cotizacion_precio") is not None:
             detalle["cotizacion_precio"] = Decimal128(detalle["cotizacion_precio"])
     id = db_client.pbstation.ventas.insert_one(venta_dict).inserted_id #mongodb crea automaticamente el id como "_id"
-    nueva_venta = venta_schema(db_client.pbstation.ventas.find_one({"_id":id}))
-    db_client.pbstation.cortes.update_one(
-        {"_id": ObjectId(corte_id)},
+    result = db_client.pbstation.cortes.update_one(
+        {"_id": corte_oid},
         {"$push": {"ventas_ids": id}}
     )
+    if result.modified_count == 0:
+        db_client.pbstation.ventas.delete_one({"_id": id})
+        raise HTTPException(status_code=500, detail="No se pudo vincular la venta al corte")
+    nueva_venta = venta_schema(db_client.pbstation.ventas.find_one({"_id":id}))
     if is_deuda: # si es deuda, notificar a los demas
         await manager.broadcast(
             f"delete-venta-deuda:{str(ObjectId(venta.id))}",
@@ -316,7 +326,7 @@ async def cancelar_venta(
     venta_id: str, 
     motivo_cancelacion: str,
     usuario_id_cancelo: str,
-    token: str = Depends(validar_token),
+    token: dict = Depends(require_permission("elevado")),
     x_connection_id: Optional[str] = Header(None)
 ):
     try:
@@ -524,8 +534,8 @@ async def buscar_venta_por_folio(folio: str, token: str = Depends(validar_token)
     try:
         # Buscar solo ventas liquidadas con el folio especificado
         venta = db_client.pbstation.ventas.find_one({
-            "folio": folio.upper(),
-            "liquidado": True
+            "folio": folio.upper()
+            #"liquidado": True
         })
         
         if not venta:

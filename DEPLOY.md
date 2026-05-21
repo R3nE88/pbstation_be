@@ -6,7 +6,6 @@ Configurar en Dokploy → Environment:
 
 ```env
 MONGODB_URL=mongodb://mongo:27017
-SECRET_KEY=P7InT3r8o&
 FACTURAMA_USER=printerboy
 FACTURAMA_PASS=DIOE860426
 ```

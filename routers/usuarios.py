@@ -6,10 +6,10 @@ from pymongo import ReturnDocument
 from models.cambiar_psw import CambiarPassword
 from models.usuario import Usuario
 from core.database import db_client
-from schemas.usuario import usuario_schema, usuarios_schema
+from schemas.usuario import usuario_public_schema, usuario_schema, usuarios_schema
 from passlib.context import CryptContext
 from routers.websocket import manager 
-from validar_token import validar_token 
+from validar_token import require_permission, revocar_sesiones_usuario, validar_token
 
 # Configuración para hashing de contraseñas
 try:
@@ -20,7 +20,7 @@ except AttributeError:
 
 router = APIRouter(prefix="/usuarios", tags=["usuarios"])
 
-@router.get("/all", response_model=list[Usuario])
+@router.get("/all")
 async def obtener_usuarios(token: str = Depends(validar_token)):
     return usuarios_schema(db_client.pbstation.usuarios.find({"activo": True}))
 
@@ -30,12 +30,12 @@ async def obtener_usuario(id: str, token: str = Depends(validar_token)):
         usuarios = search_usuario("_id", ObjectId(id))
         if usuarios is None:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
-        return usuarios
+        return usuario_public_schema(db_client.pbstation.usuarios.find_one({"_id": ObjectId(id)}))
     except InvalidId:
         raise HTTPException(status_code=400, detail="Formato de ID inválido")
     
-@router.post("/", response_model=Usuario, status_code=status.HTTP_201_CREATED) #post
-async def crear_usuario(usuario: Usuario, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+@router.post("/", status_code=status.HTTP_201_CREATED) #post
+async def crear_usuario(usuario: Usuario, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
     usuario.correo = usuario.correo.lower()
     if type(search_usuario("correo", usuario.correo)) == Usuario:
         raise HTTPException(
@@ -54,10 +54,10 @@ async def crear_usuario(usuario: Usuario, token: str = Depends(validar_token), x
         f"post-usuario:{str(id)}",
         exclude_connection_id=x_connection_id
     ) #Notificar a todos
-    return Usuario(**nuevo_usuario) #el ** sirve para pasar los valores del diccionario
+    return usuario_public_schema(db_client.pbstation.usuarios.find_one({"_id":id}))
 
-@router.put("/", response_model=Usuario, status_code=status.HTTP_200_OK)
-async def actualizar_usuario(usuario: Usuario, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+@router.put("/", status_code=status.HTTP_200_OK)
+async def actualizar_usuario(usuario: Usuario, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
     if not usuario.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -87,10 +87,10 @@ async def actualizar_usuario(usuario: Usuario, token: str = Depends(validar_toke
         f"put-usuario:{str(ObjectId(usuario.id))}",
         exclude_connection_id=x_connection_id
     )
-    return search_usuario("_id", ObjectId(usuario.id))
+    return usuario_public_schema(db_client.pbstation.usuarios.find_one({"_id": ObjectId(usuario.id)}))
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-async def delete_usuario(id: str, token: str = Depends(validar_token), x_connection_id: Optional[str] = Header(None)):
+async def delete_usuario(id: str, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
     found = db_client.pbstation.usuarios.find_one_and_update(
         {"_id": ObjectId(id)},
         {"$set": {"activo": False}},
@@ -106,7 +106,7 @@ async def delete_usuario(id: str, token: str = Depends(validar_token), x_connect
         return {'message':'Desactivado con exito'}
     
 @router.patch("/cambiar-password", status_code=status.HTTP_200_OK)
-async def cambiar_password_seguro(datos: CambiarPassword, token: str = Depends(validar_token)):
+async def cambiar_password_seguro(datos: CambiarPassword, token: dict = Depends(require_permission("admin"))):
     try:
         # Buscar el usuario actual
         usuario_actual = db_client.pbstation.usuarios.find_one({"_id": ObjectId(datos.id)})
@@ -122,6 +122,7 @@ async def cambiar_password_seguro(datos: CambiarPassword, token: str = Depends(v
             {"_id": ObjectId(datos.id)},
             {"$set": {"psw": nueva_psw_encriptada}}
         )
+        revocar_sesiones_usuario(datos.id)
     except HTTPException:
         raise
     except Exception as e:

@@ -8,7 +8,7 @@ from os import getenv
 from core.database import db_client
 from models.factura import Factura
 from schemas.factura import factura_schema, facturas_schema
-from validar_token import validar_token
+from validar_token import require_permission, validar_token
 from routers.websocket import manager 
 
 router = APIRouter(prefix="/facturacion", tags=["Facturación"])
@@ -86,20 +86,20 @@ async def obtener_factura(id: str, token: str = Depends(validar_token)):
     except InvalidId:
         raise HTTPException(status_code=400, detail="Formato de ID inválido")
 
-@router.get("/check")
-def check():
+@router.get("/diagnostico/check")
+def check(token: dict = Depends(require_permission("admin"))):
     endpoint = f"{BASE_URL}/api/Catalogs/States"
     r = requests.get(endpoint, auth=(FACTURAMA_USER, FACTURAMA_PASS))
     return r.json()
 
 @router.post("/crear")
-def crear_factura(cfdi: dict):
+def crear_factura(cfdi: dict, token: dict = Depends(require_permission("elevado"))):
     url = f"{BASE_URL}/3/cfdis"
     r = requests.post(url, json=cfdi, auth=(FACTURAMA_USER, FACTURAMA_PASS))
     return r.json()
 
 @router.get("/pdf/{id}")
-def descargar_pdf(id: str):
+def descargar_pdf(id: str, token: dict = Depends(validar_token)):
     url = f"{BASE_URL}/api/cfdi/pdf/{id}"
     r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
 
@@ -117,7 +117,7 @@ def descargar_pdf(id: str):
         raise HTTPException(status_code=500, detail=f"Error procesando PDF: {str(e)}")
 
 @router.get("/xml/{id}")
-def descargar_xml(id: str):
+def descargar_xml(id: str, token: dict = Depends(validar_token)):
     url = f"{BASE_URL}/api/cfdi/xml/{id}"
     r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
 

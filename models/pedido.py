@@ -5,6 +5,7 @@ from datetime import datetime
 
 class Archivo(BaseModel):
     nombre: str
+    nombre_original: str | None = None
     ruta: str
     tipo: str
     tamano: Optional[int] = None

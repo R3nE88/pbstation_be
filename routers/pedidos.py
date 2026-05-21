@@ -1,5 +1,5 @@
-from io import BytesIO
 import shutil
+import tempfile
 import zipfile
 from fastapi import APIRouter, UploadFile, File, Form, Depends, HTTPException, status, Header
 from typing import Optional, List
@@ -8,20 +8,40 @@ from datetime import datetime
 import os
 import json
 from core.database import db_client
+from core.pedidos_archivos import (
+    UPLOAD_DIR,
+    eliminar_rutas,
+    guardar_uploads,
+    ruta_archivo_absoluta,
+)
 from models.pedido import Pedido
 from schemas.pedido import pedido_schema, pedidos_schema
 from validar_token import validar_token
 from routers.websocket import manager
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse
 from generador_folio import generar_folio_pedido
+from starlette.background import BackgroundTask
 
 router = APIRouter(prefix="/pedidos", tags=["pedidos"])
 
-UPLOAD_DIR = "uploads"
-os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-MAX_UPLOAD_SIZE_GB = 5
-MAX_TOTAL_SIZE = MAX_UPLOAD_SIZE_GB * 1024 * 1024 * 1024
+def _eliminar_archivo_temporal(ruta: str) -> None:
+    try:
+        if os.path.exists(ruta):
+            os.remove(ruta)
+    except OSError as e:
+        print(f"Advertencia: No se pudo eliminar ZIP temporal {ruta}: {str(e)}")
+
+
+def _nombre_unico_zip(nombre: str, usados: set[str]) -> str:
+    candidato = nombre
+    contador = 1
+    stem, ext = os.path.splitext(nombre)
+    while candidato.lower() in usados:
+        candidato = f"{stem}_{contador}{ext}"
+        contador += 1
+    usados.add(candidato.lower())
+    return candidato
 
 
 @router.get("/all", response_model=List[Pedido])
@@ -89,24 +109,6 @@ async def crear_pedido(
             detail="Los pedidos deben tener archivos o estar en estado 'en espera'"
         )
     
-    archivos_temp = []
-    if archivos:
-        total_size = 0
-        for archivo in archivos:
-            content = await archivo.read()
-            total_size += len(content)
-            archivos_temp.append({
-                'content': content,
-                'filename': archivo.filename,
-                'size': len(content)
-            })
-        
-        if total_size > MAX_TOTAL_SIZE:
-            raise HTTPException(
-                status_code=413,
-                detail=f"El tamaño total excede el límite de {MAX_UPLOAD_SIZE_GB}GB"
-            )
-    
     folio = generar_folio_pedido(db_client.pbstation, pedido_data['sucursal_id'])
 
     pedido_temp = {
@@ -129,36 +131,18 @@ async def crear_pedido(
     result = db_client.pbstation.pedidos.insert_one(pedido_temp)
     pedido_id = str(result.inserted_id)
 
-    if archivos_temp:
-        pedido_dir = os.path.join(UPLOAD_DIR, pedido_id)
-        os.makedirs(pedido_dir, exist_ok=True)
-        archivos_guardados = []
-
-        for archivo_temp in archivos_temp:
-            nombre = archivo_temp['filename']
-            ext = os.path.splitext(nombre)[1]
-            ruta = os.path.join(pedido_dir, nombre)
-            
-            try:
-                with open(ruta, "wb") as buffer:
-                    buffer.write(archivo_temp['content'])
-                
-                archivos_guardados.append({
-                    "nombre": nombre,
-                    "ruta": ruta,
-                    "tipo": ext.lstrip("."),
-                    "tamano": archivo_temp['size']
-                })
-            except Exception as e:
-                import shutil
-                if os.path.exists(pedido_dir):
-                    shutil.rmtree(pedido_dir)
-                db_client.pbstation.pedidos.delete_one({"_id": ObjectId(pedido_id)})
-                raise HTTPException(status_code=500, detail=f"Error guardando archivo: {str(e)}")
-
+    if archivos:
+        try:
+            archivos_guardados = await guardar_uploads(pedido_id, archivos)
+        except Exception:
+            pedido_dir = os.path.join(UPLOAD_DIR, pedido_id)
+            if os.path.exists(pedido_dir):
+                shutil.rmtree(pedido_dir)
+            db_client.pbstation.pedidos.delete_one({"_id": ObjectId(pedido_id)})
+            raise
         db_client.pbstation.pedidos.update_one(
             {"_id": ObjectId(pedido_id)},
-            {"$set": {"archivos": archivos_guardados}}
+            {"$push": {"archivos": {"$each": archivos_guardados}}}
         )
 
     nuevo_pedido = pedido_schema(db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)}))
@@ -176,54 +160,23 @@ async def agregar_archivos_pedido(
     if not pedido:
         raise HTTPException(status_code=404, detail="Pedido no encontrado")
     
-    total_size = 0
-    archivos_temp = []
-    
-    for archivo in archivos:
-        content = await archivo.read()
-        total_size += len(content)
-        archivos_temp.append({
-            'content': content,
-            'filename': archivo.filename,
-            'size': len(content)
-        })
-    
-    if total_size > MAX_TOTAL_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail=f"El tamaño total excede el límite de {MAX_UPLOAD_SIZE_GB}GB"
-        )
-    
-    pedido_dir = os.path.join(UPLOAD_DIR, pedido_id)
-    os.makedirs(pedido_dir, exist_ok=True)
-    archivos_guardados = pedido.get("archivos", [])
+    archivos_guardados = await guardar_uploads(pedido_id, archivos)
 
-    for archivo_temp in archivos_temp:
-        nombre = archivo_temp['filename']
-        ext = os.path.splitext(nombre)[1]
-        ruta = os.path.join(pedido_dir, nombre)
-        
-        try:
-            with open(ruta, "wb") as buffer:
-                buffer.write(archivo_temp['content'])
-            
-            archivos_guardados.append({
-                "nombre": nombre,
-                "ruta": ruta,
-                "tipo": ext.lstrip("."),
-                "tamano": archivo_temp['size']
-            })
-        except Exception as e:
-            raise HTTPException(status_code=500, detail=f"Error guardando archivo: {str(e)}")
-
-    update_data = {"archivos": archivos_guardados}
-    if pedido.get("estado") == "en espera":
-        update_data["estado"] = "pendiente"
+    update_ops = {"$push": {"archivos": {"$each": archivos_guardados}}}
+    if pedido.get("estado") in {"enEspera", "en espera"}:
+        update_ops["$set"] = {"estado": "pendiente"}
     
-    db_client.pbstation.pedidos.update_one(
-        {"_id": ObjectId(pedido_id)},
-        {"$set": update_data}
+    resultado = db_client.pbstation.pedidos.update_one(
+        {
+            "_id": ObjectId(pedido_id),
+            "estado": {"$nin": ["entregado", "cancelado"]},
+            "cancelado": {"$ne": True}
+        },
+        update_ops
     )
+    if resultado.matched_count == 0:
+        eliminar_rutas([archivo["ruta"] for archivo in archivos_guardados])
+        raise HTTPException(status_code=409, detail="El pedido ya no acepta archivos")
 
     pedido_actualizado = pedido_schema(
         db_client.pbstation.pedidos.find_one({"_id": ObjectId(pedido_id)})
@@ -248,13 +201,13 @@ async def descargar_archivo_individual(
     if not archivo:
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
 
-    ruta = archivo["ruta"]
+    ruta = ruta_archivo_absoluta(archivo["ruta"])
     if not os.path.exists(ruta):
         raise HTTPException(status_code=404, detail="Archivo físico no encontrado")
 
     return FileResponse(
         path=ruta,
-        filename=archivo["nombre"],
+        filename=archivo.get("nombre_original") or archivo["nombre"],
         media_type="application/octet-stream"
     )
 
@@ -271,29 +224,38 @@ async def descargar_archivos_zip(
     if not archivos:
         raise HTTPException(status_code=404, detail="El pedido no tiene archivos")
 
-    zip_buffer = BytesIO()
-    
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zip_file:
-        for archivo in archivos:
-            ruta = archivo["ruta"]
-            if os.path.exists(ruta):
-                zip_file.write(ruta, arcname=archivo["nombre"])
-            else:
-                print(f"Advertencia: Archivo no encontrado: {ruta}")
-
-    zip_buffer.seek(0)
-    zip_size = zip_buffer.getbuffer().nbytes
-
     folio = pedido.get("folio", pedido_id)
     filename = f"{folio}.zip"
+    zip_temp = tempfile.NamedTemporaryFile(
+        prefix=f"pedido_{pedido_id}_",
+        suffix=".zip",
+        delete=False,
+    )
+    zip_path = zip_temp.name
+    zip_temp.close()
 
-    return StreamingResponse(
-        zip_buffer,
+    try:
+        nombres_usados = set()
+        with zipfile.ZipFile(zip_path, 'w', zipfile.ZIP_DEFLATED) as zip_file:
+            for archivo in archivos:
+                ruta = ruta_archivo_absoluta(archivo["ruta"])
+                if os.path.exists(ruta):
+                    nombre_zip = _nombre_unico_zip(
+                        archivo.get("nombre_original") or archivo["nombre"],
+                        nombres_usados,
+                    )
+                    zip_file.write(ruta, arcname=nombre_zip)
+                else:
+                    print(f"Advertencia: Archivo no encontrado: {ruta}")
+    except Exception:
+        _eliminar_archivo_temporal(zip_path)
+        raise
+
+    return FileResponse(
+        path=zip_path,
         media_type="application/zip",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-            "Content-Length": str(zip_size)
-        }
+        filename=filename,
+        background=BackgroundTask(_eliminar_archivo_temporal, zip_path),
     )
 
 @router.patch("/{pedido_id}/venta", response_model=Pedido)

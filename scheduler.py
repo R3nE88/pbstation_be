@@ -1,5 +1,6 @@
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from core.database import db_client
+from core.pedidos_archivos import limpiar_archivos_huerfanos
 from datetime import datetime
 from pytz import timezone
 from routers.websocket import manager
@@ -30,6 +31,16 @@ async def verificar_cotizaciones_vencidas():
         await manager.broadcast("reload-cotizaciones")
         print(f"Actualizadas {len(vencidas)} cotizaciones como vencidas")
 
+
+async def limpiar_uploads_huerfanos():
+    print("Limpiando archivos huerfanos de pedidos...")
+    resultado = limpiar_archivos_huerfanos(db)
+    print(
+        "Limpieza de uploads completada: "
+        f"{resultado['archivos_eliminados']} archivos, "
+        f"{resultado['carpetas_eliminadas']} carpetas"
+    )
+
 def iniciar_scheduler():
     scheduler = AsyncIOScheduler(timezone="America/Hermosillo")
     scheduler.add_job(
@@ -39,5 +50,12 @@ def iniciar_scheduler():
         minute=0,
         misfire_grace_time=None
     )  # cada día a las 2am, misfire_grace_time evita que se cancele si la PC estaba suspendida
+    scheduler.add_job(
+        limpiar_uploads_huerfanos,
+        'cron',
+        hour=3,
+        minute=0,
+        misfire_grace_time=None
+    )
     scheduler.start()
 

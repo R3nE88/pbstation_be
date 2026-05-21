@@ -2,9 +2,9 @@ from fastapi import APIRouter, HTTPException, status, Depends
 from fastapi.exceptions import HTTPException as FastAPI_HTTPException
 from models.usuario import Usuario
 from core.database import db_client
-from schemas.usuario import usuario_schema
+from schemas.usuario import usuario_schema, usuario_public_schema
 from passlib.context import CryptContext
-from validar_token import validar_token 
+from validar_token import crear_sesion, revocar_sesion, validar_token
 
 router = APIRouter(prefix="/login", tags=["login"])
 
@@ -19,7 +19,7 @@ def verify_password(plain_password, hashed_password):
     return pwd_context.verify(plain_password, hashed_password)
 
 @router.post('',)
-async def login(credentials: dict, token: str = Depends(validar_token)):
+async def login(credentials: dict):
     identificador = credentials.get("correo", "").strip().lower()
     psw = credentials.get("psw", "")
 
@@ -43,6 +43,12 @@ async def login(credentials: dict, token: str = Depends(validar_token)):
                 detail="Credenciales incorrectas",
                 headers={"WWW-Authenticate": "Bearer"},
             )
+        if not usuario.get("activo", True):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario inactivo",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         loginUser = Usuario(**usuario_schema(usuario))
         if not verify_password(psw, loginUser.psw):
             raise HTTPException(
@@ -50,9 +56,7 @@ async def login(credentials: dict, token: str = Depends(validar_token)):
                 detail="Credenciales incorrectas",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        usuario_dict = dict(loginUser)
-        del usuario_dict["psw"]
-        return usuario_dict
+        return crear_sesion(usuario)
     except FastAPI_HTTPException as http_exc:
         raise http_exc
     except Exception as e:
@@ -60,3 +64,12 @@ async def login(credentials: dict, token: str = Depends(validar_token)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al procesar el login: {str(e)}"
         )
+
+@router.post("/logout")
+async def logout(usuario: dict = Depends(validar_token)):
+    revocar_sesion(usuario["session_id"])
+    return {"message": "Sesion cerrada"}
+
+@router.get("/me")
+async def me(usuario: dict = Depends(validar_token)):
+    return usuario_public_schema(usuario)
