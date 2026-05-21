@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from dotenv import load_dotenv
+import os
 import routers.facturas as facturas
 from routers import configuracion, productos, usuarios, login, websocket, clientes, ventas, sucursales, cotizaciones, ventas_enviadas, cajas, impresoras, contadores, pedidos, correo
 from scheduler import iniciar_scheduler, verificar_cotizaciones_vencidas
@@ -9,7 +10,16 @@ from validar_token import revocar_sesion, validar_token
 from fastapi import Depends
 
 load_dotenv()
-app = FastAPI()
+
+debug = os.getenv("DEBUG")
+if debug == "true":
+    app = FastAPI()
+else:
+    app = FastAPI(
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None
+    )
 
 # Inicializar base de datos con datos por defecto
 crear_configuracion_defecto()
