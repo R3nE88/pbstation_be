@@ -35,7 +35,7 @@ async def obtener_usuario(id: str, token: str = Depends(validar_token)):
         raise HTTPException(status_code=400, detail="Formato de ID inválido")
     
 @router.post("/", status_code=status.HTTP_201_CREATED) #post
-async def crear_usuario(usuario: Usuario, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
+async def crear_usuario(usuario: Usuario, token: dict = Depends(require_permission("elevado")), x_connection_id: Optional[str] = Header(None)):
     usuario.correo = usuario.correo.lower()
     if type(search_usuario("correo", usuario.correo)) == Usuario:
         raise HTTPException(
@@ -57,7 +57,7 @@ async def crear_usuario(usuario: Usuario, token: dict = Depends(require_permissi
     return usuario_public_schema(db_client.pbstation.usuarios.find_one({"_id":id}))
 
 @router.put("/", status_code=status.HTTP_200_OK)
-async def actualizar_usuario(usuario: Usuario, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
+async def actualizar_usuario(usuario: Usuario, token: dict = Depends(require_permission("elevado")), x_connection_id: Optional[str] = Header(None)):
     if not usuario.id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, 
@@ -90,7 +90,7 @@ async def actualizar_usuario(usuario: Usuario, token: dict = Depends(require_per
     return usuario_public_schema(db_client.pbstation.usuarios.find_one({"_id": ObjectId(usuario.id)}))
 
 @router.delete("/{id}", status_code=status.HTTP_204_NO_CONTENT) #delete path
-async def delete_usuario(id: str, token: dict = Depends(require_permission("admin")), x_connection_id: Optional[str] = Header(None)):
+async def delete_usuario(id: str, token: dict = Depends(require_permission("elevado")), x_connection_id: Optional[str] = Header(None)):
     found = db_client.pbstation.usuarios.find_one_and_update(
         {"_id": ObjectId(id)},
         {"$set": {"activo": False}},
@@ -106,7 +106,7 @@ async def delete_usuario(id: str, token: dict = Depends(require_permission("admi
         return {'message':'Desactivado con exito'}
     
 @router.patch("/cambiar-password", status_code=status.HTTP_200_OK)
-async def cambiar_password_seguro(datos: CambiarPassword, token: dict = Depends(require_permission("admin"))):
+async def cambiar_password_seguro(datos: CambiarPassword, token: dict = Depends(require_permission("elevado"))):
     try:
         # Buscar el usuario actual
         usuario_actual = db_client.pbstation.usuarios.find_one({"_id": ObjectId(datos.id)})

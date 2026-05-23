@@ -25,7 +25,7 @@ def obtener_config():
 @router.put("/precio-dolar")
 async def actualizar_precio_dolar(
     data: PrecioDolarUpdate,
-    token: dict = Depends(require_permission("admin")),
+    token: dict = Depends(require_permission("elevado")),
     x_connection_id: Optional[str] = Header(None)
 ):
     config = cargar_config()
@@ -45,7 +45,7 @@ async def actualizar_precio_dolar(
 @router.put("/iva")
 async def actualizar_iva(
     data: IvaUpdate,
-    token: dict = Depends(require_permission("admin")),
+    token: dict = Depends(require_permission("elevado")),
     x_connection_id: Optional[str] = Header(None)
 ):
     config = cargar_config()
@@ -81,4 +81,3 @@ async def actualizar_version(
         "message": "Versión actualizada correctamente",
         "last_version": data.last_version
     }
-
