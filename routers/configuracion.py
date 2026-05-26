@@ -18,6 +18,14 @@ class IvaUpdate(BaseModel):
 class VersionUpdate(BaseModel):
     last_version: str = Field(..., description="Versión actual del sistema")
 
+class DatosEmisorUpdate(BaseModel):
+    empresa: str = Field(..., description="Nombre de la empresa")
+    ciudad: str = Field(..., description="Ciudad de la empresa")
+    nombre_emisor: str = Field(..., description="Nombre del emisor")
+    direccion_emisor: str = Field(..., description="Dirección del emisor")
+    telefono_emisor: str = Field(..., description="Teléfono del emisor")
+    rfc_emisor: str = Field(..., description="RFC del emisor")
+
 @router.get("/")
 def obtener_config():
     return cargar_config()
@@ -80,4 +88,28 @@ async def actualizar_version(
     return {
         "message": "Versión actualizada correctamente",
         "last_version": data.last_version
+    }
+
+@router.put("/datos-emisor")
+async def actualizar_datos_emisor(
+    data: DatosEmisorUpdate,
+    token: dict = Depends(require_permission("elevado")),
+    x_connection_id: Optional[str] = Header(None)
+):
+    config = cargar_config()
+    config["empresa"] = data.empresa
+    config["ciudad"] = data.ciudad
+    config["nombre_emisor"] = data.nombre_emisor
+    config["direccion_emisor"] = data.direccion_emisor
+    config["telefono_emisor"] = data.telefono_emisor
+    config["rfc_emisor"] = data.rfc_emisor
+    guardar_config(config)
+
+    await manager.broadcast(
+        "put-configuracion",
+        exclude_connection_id=x_connection_id
+    )
+
+    return {
+        "message": "Datos de emisor actualizados correctamente"
     }

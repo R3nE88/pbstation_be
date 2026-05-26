@@ -6,7 +6,13 @@ def cargar_config():
         config = {
             "precio_dolar": 0,
             "iva": 0,
-            "last_version": "1.0.0"
+            "last_version": "1.0.0",
+            "empresa": "",
+            "ciudad": "",
+            "nombre_emisor": "",
+            "direccion_emisor": "",
+            "telefono_emisor": "",
+            "rfc_emisor": ""
         }
         db.configuracion.insert_one(config)
         config.pop("_id", None)
