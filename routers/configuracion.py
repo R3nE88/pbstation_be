@@ -26,8 +26,27 @@ class DatosEmisorUpdate(BaseModel):
     telefono_emisor: str = Field(..., description="Teléfono del emisor")
     rfc_emisor: str = Field(..., description="RFC del emisor")
 
+class CredencialesCorreoUpdate(BaseModel):
+    mail_username: str = Field(...)
+    mail_password: str = Field(...)
+    mail_from: str = Field(...)
+    mail_port: int = Field(...)
+    mail_server: str = Field(...)
+
+class CredencialesFacturamaUpdate(BaseModel):
+    facturama_user: str = Field(...)
+    facturama_pass: str = Field(...)
+
 @router.get("/")
 def obtener_config():
+    config = cargar_config()
+    # Enmascarar contraseñas para el endpoint público
+    config["mail_password"] = "********" if config.get("mail_password") else ""
+    config["facturama_pass"] = "********" if config.get("facturama_pass") else ""
+    return config
+
+@router.get("/admin")
+def obtener_config_admin(token: dict = Depends(require_permission("admin"))):
     return cargar_config()
 
 @router.put("/precio-dolar")
@@ -113,3 +132,50 @@ async def actualizar_datos_emisor(
     return {
         "message": "Datos de emisor actualizados correctamente"
     }
+
+@router.put("/credenciales-correo")
+async def actualizar_credenciales_correo(
+    data: CredencialesCorreoUpdate,
+    token: dict = Depends(require_permission("admin")),
+    x_connection_id: Optional[str] = Header(None)
+):
+    config = cargar_config()
+    config["mail_username"] = data.mail_username
+    
+    # Solo actualizar el password si no es la máscara
+    if data.mail_password != "********":
+        config["mail_password"] = data.mail_password
+        
+    config["mail_from"] = data.mail_from
+    config["mail_port"] = data.mail_port
+    config["mail_server"] = data.mail_server
+    guardar_config(config)
+
+    await manager.broadcast(
+        "put-configuracion",
+        exclude_connection_id=x_connection_id
+    )
+
+    return {"message": "Credenciales de correo actualizadas"}
+
+@router.put("/credenciales-facturama")
+async def actualizar_credenciales_facturama(
+    data: CredencialesFacturamaUpdate,
+    token: dict = Depends(require_permission("admin")),
+    x_connection_id: Optional[str] = Header(None)
+):
+    config = cargar_config()
+    config["facturama_user"] = data.facturama_user
+    
+    # Solo actualizar el password si no es la máscara
+    if data.facturama_pass != "********":
+        config["facturama_pass"] = data.facturama_pass
+        
+    guardar_config(config)
+
+    await manager.broadcast(
+        "put-configuracion",
+        exclude_connection_id=x_connection_id
+    )
+
+    return {"message": "Credenciales de Facturama actualizadas"}

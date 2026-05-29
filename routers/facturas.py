@@ -5,17 +5,24 @@ from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
 import requests
 from os import getenv
+import base64
+from typing import Optional
+from bson import Decimal128, ObjectId
+from bson.errors import InvalidId
+from fastapi import APIRouter, HTTPException, Response, status, Depends, Header
+import requests
+from os import getenv
 from core.database import db_client
 from models.factura import Factura
 from schemas.factura import factura_schema, facturas_schema
 from validar_token import require_permission, validar_token
 from routers.websocket import manager 
 
+from config_manager import cargar_config
+
 router = APIRouter(prefix="/facturacion", tags=["Facturación"])
 
-FACTURAMA_USER = getenv("FACTURAMA_USER")
-FACTURAMA_PASS = getenv("FACTURAMA_PASS")
-BASE_URL = "https://apisandbox.facturama.mx"
+BASE_URL = getenv("FACTURAMA_BASE_URL", "https://apisandbox.facturama.mx")
 
 @router.get("/all")
 async def obtener_facturas(
@@ -88,20 +95,23 @@ async def obtener_factura(id: str, token: str = Depends(validar_token)):
 
 @router.get("/diagnostico/check")
 def check(token: dict = Depends(require_permission("admin"))):
+    config = cargar_config()
     endpoint = f"{BASE_URL}/api/Catalogs/States"
-    r = requests.get(endpoint, auth=(FACTURAMA_USER, FACTURAMA_PASS))
+    r = requests.get(endpoint, auth=(config.get("facturama_user"), config.get("facturama_pass")))
     return r.json()
 
 @router.post("/crear")
 def crear_factura(cfdi: dict, token: dict = Depends(require_permission("elevado"))):
+    config = cargar_config()
     url = f"{BASE_URL}/3/cfdis"
-    r = requests.post(url, json=cfdi, auth=(FACTURAMA_USER, FACTURAMA_PASS))
+    r = requests.post(url, json=cfdi, auth=(config.get("facturama_user"), config.get("facturama_pass")))
     return r.json()
 
 @router.get("/pdf/{id}")
 def descargar_pdf(id: str, token: dict = Depends(validar_token)):
+    config = cargar_config()
     url = f"{BASE_URL}/api/cfdi/pdf/{id}"
-    r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
+    r = requests.get(url, auth=(config.get("facturama_user"), config.get("facturama_pass")))
 
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code, detail=f"Error de Facturama: {r.text}")
@@ -118,8 +128,9 @@ def descargar_pdf(id: str, token: dict = Depends(validar_token)):
 
 @router.get("/xml/{id}")
 def descargar_xml(id: str, token: dict = Depends(validar_token)):
+    config = cargar_config()
     url = f"{BASE_URL}/api/cfdi/xml/{id}"
-    r = requests.get(url, auth=(FACTURAMA_USER, FACTURAMA_PASS))
+    r = requests.get(url, auth=(config.get("facturama_user"), config.get("facturama_pass")))
 
     if r.status_code != 200:
         raise HTTPException(status_code=r.status_code, detail=f"Error de Facturama: {r.text}")

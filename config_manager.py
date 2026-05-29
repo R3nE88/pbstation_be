@@ -1,4 +1,5 @@
 from core.database import db
+import os
 
 def cargar_config():
     config = db.configuracion.find_one({}, {"_id": 0})
@@ -12,10 +13,37 @@ def cargar_config():
             "nombre_emisor": "",
             "direccion_emisor": "",
             "telefono_emisor": "",
-            "rfc_emisor": ""
+            "rfc_emisor": "",
+            "mail_username": os.getenv("MAIL_USERNAME", ""),
+            "mail_password": os.getenv("MAIL_PASSWORD", ""),
+            "mail_from": os.getenv("MAIL_FROM", ""),
+            "mail_port": int(os.getenv("MAIL_PORT", 465)),
+            "mail_server": os.getenv("MAIL_SERVER", ""),
+            "facturama_user": os.getenv("FACTURAMA_USER", ""),
+            "facturama_pass": os.getenv("FACTURAMA_PASS", "")
         }
         db.configuracion.insert_one(config)
         config.pop("_id", None)
+    else:
+        # Migración: asegurar que las nuevas llaves existan
+        needs_update = False
+        default_keys = {
+            "mail_username": os.getenv("MAIL_USERNAME", ""),
+            "mail_password": os.getenv("MAIL_PASSWORD", ""),
+            "mail_from": os.getenv("MAIL_FROM", ""),
+            "mail_port": int(os.getenv("MAIL_PORT", 465)),
+            "mail_server": os.getenv("MAIL_SERVER", ""),
+            "facturama_user": os.getenv("FACTURAMA_USER", ""),
+            "facturama_pass": os.getenv("FACTURAMA_PASS", "")
+        }
+        for k, v in default_keys.items():
+            if k not in config:
+                config[k] = v
+                needs_update = True
+        
+        if needs_update:
+            guardar_config(config.copy())
+            
     return config
 
 def guardar_config(data: dict):

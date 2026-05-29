@@ -10,18 +10,7 @@ from schemas.correo import EmailSchema
 
 load_dotenv()
 
-# Instanciar la configuración usando las variables de entorno
-conf = ConnectionConfig(
-    MAIL_USERNAME = os.getenv('MAIL_USERNAME'),
-    MAIL_PASSWORD = os.getenv('MAIL_PASSWORD'),
-    MAIL_FROM = os.getenv('MAIL_FROM'),
-    MAIL_PORT = int(os.getenv('MAIL_PORT', 465)),
-    MAIL_SERVER = os.getenv('MAIL_SERVER'),
-    MAIL_STARTTLS = False,
-    MAIL_SSL_TLS = True,
-    USE_CREDENTIALS = True,
-    VALIDATE_CERTS = True
-)
+from config_manager import cargar_config
 
 async def enviar_correo_base(email_data: EmailSchema):
     """Función de utilidad para enviar correos fácilmente"""
@@ -42,6 +31,19 @@ async def enviar_correo_base(email_data: EmailSchema):
         body=email_data.body,
         subtype=MessageType.html, # Cambia a MessageType.plain si no usas HTML
         attachments=attachments if attachments else None
+    )
+
+    config = cargar_config()
+    conf = ConnectionConfig(
+        MAIL_USERNAME = config.get("mail_username", ""),
+        MAIL_PASSWORD = config.get("mail_password", ""),
+        MAIL_FROM = config.get("mail_from", ""),
+        MAIL_PORT = int(config.get("mail_port", 465)),
+        MAIL_SERVER = config.get("mail_server", ""),
+        MAIL_STARTTLS = False,
+        MAIL_SSL_TLS = True,
+        USE_CREDENTIALS = True,
+        VALIDATE_CERTS = True
     )
 
     fm = FastMail(conf)
