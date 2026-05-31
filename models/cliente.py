@@ -18,4 +18,5 @@ class Cliente(BaseModel): #Entidad #modelo
     localidad: str | None = None
     adeudos: list[Adeudo] | None = None
     protegido: bool = False
+    frecuente: bool = False
     activo: bool = True
